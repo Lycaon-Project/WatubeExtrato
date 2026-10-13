@@ -9,7 +9,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -80,18 +79,6 @@ public final class JsonUtils {
         return getInstanceOf(object, path, JsonArray.class);
     }
 
-    @Nonnull
-    public static List<Object> getValues(@Nonnull final JsonArray array, @Nonnull final String path)
-            throws ParsingException {
-
-        final List<Object> result = new ArrayList<>();
-        for (int i = 0; i < array.size(); i++) {
-            final JsonObject obj = array.getObject(i);
-            result.add(getValue(obj, path));
-        }
-        return result;
-    }
-
     @Nullable
     private static JsonObject getObject(@Nonnull final JsonObject object,
                                         @Nonnull final List<String> keys) {
@@ -103,14 +90,6 @@ public final class JsonUtils {
             }
         }
         return result;
-    }
-
-    public static JsonArray toJsonArray(final String responseBody) throws ParsingException {
-        try {
-            return JsonParser.array().from(responseBody);
-        } catch (final JsonParserException e) {
-            throw new ParsingException("Could not parse JSON", e);
-        }
     }
 
     public static JsonObject toJsonObject(final String responseBody) throws ParsingException {

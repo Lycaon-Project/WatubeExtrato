@@ -132,20 +132,6 @@ public final class Parser {
      * @return A {@code Matcher} for the first successful match.
      * @throws RegexException If no patterns match the input or if {@code patterns} is empty.
      */
-    public static String matchGroup1MultiplePatterns(final Pattern[] patterns, final String input)
-            throws RegexException {
-        return matchMultiplePatterns(patterns, input).group(1);
-    }
-
-    /**
-     * Matches multiple patterns against the input string and
-     * returns the first successful matcher
-     *
-     * @param patterns The array of regex patterns to match.
-     * @param input    The input string to match against.
-     * @return A {@code Matcher} for the first successful match.
-     * @throws RegexException If no patterns match the input or if {@code patterns} is empty.
-     */
     public static Matcher matchMultiplePatterns(final Pattern[] patterns, final String input)
             throws RegexException {
         RegexException exception = null;

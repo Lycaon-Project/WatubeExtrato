@@ -97,10 +97,6 @@ public class Lexer {
         boolean twoIs(final Token token) {
             return list[1] != null && list[1].token == token;
         }
-
-        boolean threeIs(final Token token) {
-            return list[2] != null && list[2].token == token;
-        }
     }
 
     /**

@@ -16,15 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * service.
  *
  * <p>
- * YouTube restrict streaming their media in multiple ways by requiring their HTML5 clients to use
- * a signature timestamp, and on streaming URLs a signature deobfuscation function for some
- * contents and a throttling parameter deobfuscation one for all contents.
+ * YouTube restricts streaming URLs of its HTML5 clients with a signature deobfuscation function
+ * for some contents and a throttling parameter deobfuscation one for all contents.
  * </p>
  *
  * <p>
- * This class provides access to methods which allows to get base JavaScript player's signature
- * timestamp and to deobfuscate streaming URLs' signature and/or throttling parameter of HTML5
- * clients.
+ * This class provides access to methods which allow to deobfuscate streaming URLs' signature
+ * and/or throttling parameter of HTML5 clients.
  * </p>
  */
 public final class YoutubeJavaScriptPlayerManager {
@@ -39,8 +37,6 @@ public final class YoutubeJavaScriptPlayerManager {
     private static volatile String cachedJavaScriptPlayerCode;
 
     @Nullable
-    private static volatile Integer cachedSignatureTimestamp;
-    @Nullable
     private static volatile String cachedSignatureDeobfuscationFunction;
     @Nullable
     private static volatile String cachedThrottlingDeobfuscationFunctionName;
@@ -51,69 +47,8 @@ public final class YoutubeJavaScriptPlayerManager {
     private static volatile ParsingException throttlingDeobfFuncExtractionEx;
     @Nullable
     private static volatile ParsingException sigDeobFuncExtractionEx;
-    @Nullable
-    private static volatile ParsingException sigTimestampExtractionEx;
 
     private YoutubeJavaScriptPlayerManager() {
-    }
-
-    /**
-     * Get the signature timestamp of the base JavaScript player file.
-     *
-     * <p>
-     * A valid signature timestamp sent in the payload of player InnerTube requests is required to
-     * get valid stream URLs on HTML5 clients for videos which have obfuscated signatures.
-     * </p>
-     *
-     * <p>
-     * The base JavaScript player file will fetched if it is not already done.
-     * </p>
-     *
-     * <p>
-     * The result of the extraction is cached until {@link #clearAllCaches()} is called, making
-     * subsequent calls faster.
-     * </p>
-     *
-     * @param videoId the video ID used to get the JavaScript base player file (an empty one can be
-     *                passed, even it is not recommend in order to spoof better official YouTube
-     *                clients)
-     * @return the signature timestamp of the base JavaScript player file
-     * @throws ParsingException if the extraction of the base JavaScript player file or the
-     * signature timestamp failed
-     */
-    @Nonnull
-    public static Integer getSignatureTimestamp(@Nonnull final String videoId)
-            throws ParsingException {
-        // Return the cached result if it is present
-        if (cachedSignatureTimestamp != null) {
-            return cachedSignatureTimestamp;
-        }
-
-        // If the signature timestamp has been not extracted on a previous call, this mean that we
-        // will fail to extract it on next calls too if the player code has been not changed
-        // Throw again the corresponding stored exception in this case to improve performance
-        if (sigTimestampExtractionEx != null) {
-            throw sigTimestampExtractionEx;
-        }
-
-        extractJavaScriptCodeIfNeeded(videoId);
-
-        try {
-            cachedSignatureTimestamp = Integer.valueOf(
-                    YoutubeSignatureUtils.getSignatureTimestamp(cachedJavaScriptPlayerCode));
-        } catch (final ParsingException e) {
-            // Store the exception for future calls of this method, in order to improve performance
-            sigTimestampExtractionEx = e;
-            throw e;
-        } catch (final NumberFormatException e) {
-            sigTimestampExtractionEx =
-                    new ParsingException("Could not convert signature timestamp to a number", e);
-        } catch (final Exception e) {
-            sigTimestampExtractionEx = new ParsingException("Could not get signature timestamp", e);
-            throw e;
-        }
-
-        return cachedSignatureTimestamp;
     }
 
     /**
@@ -196,8 +131,8 @@ public final class YoutubeJavaScriptPlayerManager {
      * </p>
      *
      * <p>
-     * The cache's size can be get using {@link #getThrottlingParametersCacheSize()} and the cache
-     * can be cleared using {@link #clearThrottlingParametersCache()} or {@link #clearAllCaches()}.
+     * The cache can be cleared using {@link #clearThrottlingParametersCache()} or
+     * {@link #clearAllCaches()}.
      * </p>
      *
      * @param videoId      the video ID used to get the JavaScript base player file (an empty one
@@ -290,15 +225,6 @@ public final class YoutubeJavaScriptPlayerManager {
     }
 
     /**
-     * Get the current cache size of throttling parameters.
-     *
-     * @return the current cache size of throttling parameters
-     */
-    public static int getThrottlingParametersCacheSize() {
-        return CACHED_THROTTLING_PARAMETERS.size();
-    }
-
-    /**
      * Clear all caches.
      *
      * <p>
@@ -306,8 +232,7 @@ public final class YoutubeJavaScriptPlayerManager {
      * </p>
      *
      * <p>
-     * The next time {@link #getSignatureTimestamp(String)},
-     * {@link #deobfuscateSignature(String, String)} or
+     * The next time {@link #deobfuscateSignature(String, String)} or
      * {@link #getUrlWithThrottlingParameterDeobfuscated(String, String)} is called, the JavaScript
      * code will be fetched again and the corresponding extraction methods will be ran.
      * </p>
@@ -317,13 +242,11 @@ public final class YoutubeJavaScriptPlayerManager {
         cachedSignatureDeobfuscationFunction = null;
         cachedThrottlingDeobfuscationFunctionName = null;
         cachedThrottlingDeobfuscationFunction = null;
-        cachedSignatureTimestamp = null;
         clearThrottlingParametersCache();
 
         // Clear cached extraction exceptions, if applicable
         throttlingDeobfFuncExtractionEx = null;
         sigDeobFuncExtractionEx = null;
-        sigTimestampExtractionEx = null;
     }
 
     /**

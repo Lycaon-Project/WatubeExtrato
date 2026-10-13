@@ -9,7 +9,6 @@ final class ClientsConstants {
     static final String DESKTOP_CLIENT_PLATFORM = "DESKTOP";
     static final String MOBILE_CLIENT_PLATFORM = "MOBILE";
     static final String WATCH_CLIENT_SCREEN = "WATCH";
-    static final String EMBED_CLIENT_SCREEN = "EMBED";
 
     // WEB (YouTube desktop) client fields
 
@@ -26,12 +25,6 @@ final class ClientsConstants {
     static final String WEB_REMIX_CLIENT_ID = "67";
     static final String WEB_REMIX_CLIENT_NAME = "WEB_REMIX";
     static final String WEB_REMIX_HARDCODED_CLIENT_VERSION = "1.20260121.03.00";
-
-    // WEB_EMBEDDED_PLAYER (YouTube embeds)
-
-    static final String WEB_EMBEDDED_CLIENT_ID = "56";
-    static final String WEB_EMBEDDED_CLIENT_NAME = "WEB_EMBEDDED_PLAYER";
-    static final String WEB_EMBEDDED_CLIENT_VERSION = "1.20260122.01.00";
 
     // WEB_MUSIC_ANALYTICS (YouTube charts)
 
@@ -96,8 +89,6 @@ final class ClientsConstants {
 
     // ANDROID (Android YouTube app) client fields
 
-    static final String ANDROID_CLIENT_ID = "3";
-    static final String ANDROID_CLIENT_NAME = "ANDROID";
 
     /**
      * The hardcoded client version of the Android app used for InnerTube requests with this

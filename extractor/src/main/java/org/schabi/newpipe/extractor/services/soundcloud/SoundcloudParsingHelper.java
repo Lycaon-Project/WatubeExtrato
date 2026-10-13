@@ -291,28 +291,6 @@ public final class SoundcloudParsingHelper {
 
     /**
      * Fetch the streams from the given API and commit each of them to the collector.
-     * <p>
-     * This differ from {@link #getStreamsFromApi(StreamInfoItemsCollector, String)} in the sense
-     * that they will always get MIN_ITEMS or more items.
-     *
-     * @param minItems the method will return only when it have extracted that many items
-     *                 (equal or more)
-     */
-    public static String getStreamsFromApiMinItems(final int minItems,
-                                                   final StreamInfoItemsCollector collector,
-                                                   final String apiUrl) throws IOException,
-            ReCaptchaException, ParsingException {
-        String nextPageUrl = SoundcloudParsingHelper.getStreamsFromApi(collector, apiUrl);
-
-        while (!nextPageUrl.isEmpty() && collector.getItems().size() < minItems) {
-            nextPageUrl = SoundcloudParsingHelper.getStreamsFromApi(collector, nextPageUrl);
-        }
-
-        return nextPageUrl;
-    }
-
-    /**
-     * Fetch the streams from the given API and commit each of them to the collector.
      *
      * @return the next streams url, empty if don't have
      */

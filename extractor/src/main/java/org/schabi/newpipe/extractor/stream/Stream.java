@@ -119,18 +119,6 @@ public abstract class Stream implements Serializable {
     }
 
     /**
-     * Gets the URL of this stream if the content is a URL, or {@code null} otherwise.
-     *
-     * @return the URL if the content is a URL, {@code null} otherwise
-     * @deprecated Use {@link #getContent()} instead.
-     */
-    @Deprecated
-    @Nullable
-    public String getUrl() {
-        return isUrl ? content : null;
-    }
-
-    /**
      * Gets the content or URL.
      *
      * @return the content or URL

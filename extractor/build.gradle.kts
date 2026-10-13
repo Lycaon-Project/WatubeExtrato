@@ -6,20 +6,10 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
-val ciSigningKey: String? = System.getenv("PGP_PRIVATE_SIGNING_KEY")
-val ciSigningPassword: String? = System.getenv("PGP_PRIVATE_SIGNING_KEY_PASSWORD")
-val shouldSignCIRelease: Boolean
-    get() = !ciSigningKey.isNullOrEmpty() && !ciSigningPassword.isNullOrEmpty()
-
-val lastCommitHash: String = providers.exec {
-    commandLine("git", "rev-parse", "--short", "HEAD")
-}.standardOutput.asText.map { it.trim() }.get()
-
 plugins {
     alias(libs.plugins.google.protobuf)
     checkstyle
     `maven-publish`
-    signing
 }
 
 java {
@@ -161,36 +151,11 @@ publishing {
 
             setupPOM()
         }
-        create<MavenPublication>("snapshot") {
-            groupId = mavenGroupId
-            artifactId = mavenArtifactId
-            version = "$lastCommitHash-SNAPSHOT"
-
-            afterEvaluate {
-                from(components["java"])
-            }
-
-            setupPOM()
-        }
         repositories {
-            maven {
-                name = "sonatype"
-                url = uri("https://central.sonatype.com/repository/maven-snapshots/")
-                credentials {
-                    username = System.getenv("SONATYPE_MAVEN_CENTRAL_USERNAME")
-                    password = System.getenv("SONATYPE_MAVEN_CENTRAL_PASSWORD")
-                }
-            }
             maven {
                 name = "local"
                 url = uri(layout.buildDirectory.dir("maven"))
             }
         }
     }
-}
-
-signing {
-    setRequired(shouldSignCIRelease)
-    useInMemoryPgpKeys(ciSigningKey, ciSigningPassword)
-    sign(publishing.publications["snapshot"])
 }

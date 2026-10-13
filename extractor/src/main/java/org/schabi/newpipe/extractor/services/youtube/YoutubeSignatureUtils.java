@@ -14,8 +14,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Utility class to get the signature timestamp of YouTube's base JavaScript player and deobfuscate
- * signature of streaming URLs from HTML5 clients.
+ * Utility class to deobfuscate the signature of streaming URLs from HTML5 clients with YouTube's
+ * base JavaScript player.
  */
 final class YoutubeSignatureUtils {
 
@@ -36,8 +36,6 @@ final class YoutubeSignatureUtils {
             // CHECKSTYLE:ON
     };
 
-    private static final String STS_REGEX = "signatureTimestamp[=:](\\d+)";
-
     private static final String DEOBF_FUNC_REGEX_START = "(";
     private static final String DEOBF_FUNC_REGEX_END = "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\})";
 
@@ -51,24 +49,6 @@ final class YoutubeSignatureUtils {
     // CHECKSTYLE:ON
 
     private YoutubeSignatureUtils() {
-    }
-
-    /**
-     * Get the signature timestamp property of YouTube's base JavaScript file.
-     *
-     * @param javaScriptPlayerCode the complete JavaScript base player code
-     * @return the signature timestamp
-     * @throws ParsingException if the signature timestamp couldn't be extracted
-     */
-    @Nonnull
-    static String getSignatureTimestamp(@Nonnull final String javaScriptPlayerCode)
-            throws ParsingException {
-        try {
-            return Parser.matchGroup1(STS_REGEX, javaScriptPlayerCode);
-        } catch (final ParsingException e) {
-            throw new ParsingException(
-                    "Could not extract signature timestamp from JavaScript code", e);
-        }
     }
 
     /**

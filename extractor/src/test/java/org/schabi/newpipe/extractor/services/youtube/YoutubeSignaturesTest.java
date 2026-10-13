@@ -1,26 +1,13 @@
 package org.schabi.newpipe.extractor.services.youtube;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 
 class YoutubeSignaturesTest implements InitYoutubeTest {
-    @ValueSource(strings = {
-            "QzUGs1qRTEI",
-            ""
-    })
-    @ParameterizedTest
-    void testSignatureTimestampExtraction(@Nonnull final String videoId) throws Exception {
-        final Integer signatureTimestamp =
-                YoutubeJavaScriptPlayerManager.getSignatureTimestamp(videoId);
-        assertTrue(signatureTimestamp > 0, "signatureTimestamp is <= 0");
-    }
-
     /*
     The first column of the CSV entries is a video ID
     The second one of these entries are not real signatures, but as the deobfuscation function

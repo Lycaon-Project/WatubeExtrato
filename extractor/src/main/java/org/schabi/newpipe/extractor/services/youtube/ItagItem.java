@@ -104,15 +104,6 @@ public class ItagItem implements Serializable {
     // Utils
     //////////////////////////////////////////////////////////////////////////*/
 
-    public static boolean isSupported(final int itag) {
-        for (final ItagItem item : ITAG_LIST) {
-            if (itag == item.id) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Nonnull
     public static ItagItem getItag(final int itagId) throws ParsingException {
         for (final ItagItem item : ITAG_LIST) {

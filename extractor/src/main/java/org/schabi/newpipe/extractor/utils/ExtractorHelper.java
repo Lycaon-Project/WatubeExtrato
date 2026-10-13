@@ -46,13 +46,4 @@ public final class ExtractorHelper {
         }
     }
 
-    /**
-     * @deprecated Use {@link #getRelatedItemsOrLogError(StreamInfo, StreamExtractor)}
-     */
-    @Deprecated
-    public static List<InfoItem> getRelatedVideosOrLogError(final StreamInfo info,
-                                                            final StreamExtractor extractor) {
-        return getRelatedItemsOrLogError(info, extractor);
-    }
-
 }

@@ -303,16 +303,6 @@ public final class Utils {
         return string == null || string.isBlank();
     }
 
-    @Nonnull
-    public static String join(
-            final String delimiter,
-            final String mapJoin,
-            @Nonnull final Map<? extends CharSequence, ? extends CharSequence> elements) {
-        return elements.entrySet().stream()
-                .map(entry -> entry.getKey() + mapJoin + entry.getValue())
-                .collect(Collectors.joining(delimiter));
-    }
-
     /**
      * Concatenate all non-null, non-empty and strings which are not equal to <code>"null"</code>.
      */
@@ -322,38 +312,6 @@ public final class Utils {
         return Arrays.stream(elements)
                 .filter(s -> !isNullOrEmpty(s) && !s.equals("null"))
                 .collect(Collectors.joining(delimiter));
-    }
-
-    /**
-     * Find the result of an array of string regular expressions inside an input on the first
-     * group ({@code 0}).
-     *
-     * @param input   the input on which using the regular expressions
-     * @param regexes the string array of regular expressions
-     * @return the result
-     * @throws Parser.RegexException if none of the patterns match the input
-     */
-    @Nonnull
-    public static String getStringResultFromRegexArray(@Nonnull final String input,
-                                                       @Nonnull final String[] regexes)
-            throws Parser.RegexException {
-        return getStringResultFromRegexArray(input, regexes, 0);
-    }
-
-    /**
-     * Find the result of an array of {@link Pattern}s inside an input on the first group
-     * ({@code 0}).
-     *
-     * @param input   the input on which using the regular expressions
-     * @param regexes the {@link Pattern} array
-     * @return the result
-     * @throws Parser.RegexException if none of the patterns match the input
-     */
-    @Nonnull
-    public static String getStringResultFromRegexArray(@Nonnull final String input,
-                                                       @Nonnull final Pattern[] regexes)
-            throws Parser.RegexException {
-        return getStringResultFromRegexArray(input, regexes, 0);
     }
 
     /**

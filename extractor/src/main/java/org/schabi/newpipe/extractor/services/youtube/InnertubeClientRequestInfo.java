@@ -3,11 +3,7 @@ package org.schabi.newpipe.extractor.services.youtube;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.ANDROID_CLIENT_ID;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.ANDROID_CLIENT_NAME;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.ANDROID_CLIENT_VERSION;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.DESKTOP_CLIENT_PLATFORM;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.EMBED_CLIENT_SCREEN;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.IOS_CLIENT_ID;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.IOS_CLIENT_NAME;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.IOS_CLIENT_VERSION;
@@ -22,9 +18,6 @@ import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.VIS
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WATCH_CLIENT_SCREEN;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_CLIENT_ID;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_CLIENT_NAME;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_EMBEDDED_CLIENT_ID;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_EMBEDDED_CLIENT_NAME;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_EMBEDDED_CLIENT_VERSION;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_HARDCODED_CLIENT_VERSION;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_MUSIC_ANALYTICS_CLIENT_ID;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.WEB_MUSIC_ANALYTICS_CLIENT_NAME;
@@ -111,16 +104,6 @@ public final class InnertubeClientRequestInfo {
     }
 
     @Nonnull
-    public static InnertubeClientRequestInfo ofWebEmbeddedPlayerClient() {
-        return new InnertubeClientRequestInfo(
-                new InnertubeClientRequestInfo.ClientInfo(WEB_EMBEDDED_CLIENT_NAME,
-                        WEB_EMBEDDED_CLIENT_VERSION, WEB_EMBEDDED_CLIENT_ID, EMBED_CLIENT_SCREEN,
-                        null),
-                new InnertubeClientRequestInfo.DeviceInfo(DESKTOP_CLIENT_PLATFORM, null, null,
-                        null, null, -1));
-    }
-
-    @Nonnull
     public static InnertubeClientRequestInfo ofWebMusicAnalyticsChartsClient() {
         return new InnertubeClientRequestInfo(
                 new InnertubeClientRequestInfo.ClientInfo(WEB_MUSIC_ANALYTICS_CLIENT_NAME,
@@ -128,15 +111,6 @@ public final class InnertubeClientRequestInfo {
                         null),
                 new InnertubeClientRequestInfo.DeviceInfo(null, null, null,
                         null, null, -1));
-    }
-
-    @Nonnull
-    public static InnertubeClientRequestInfo ofAndroidClient() {
-        return new InnertubeClientRequestInfo(
-                new InnertubeClientRequestInfo.ClientInfo(ANDROID_CLIENT_NAME,
-                        ANDROID_CLIENT_VERSION, ANDROID_CLIENT_ID, WATCH_CLIENT_SCREEN, null),
-                new InnertubeClientRequestInfo.DeviceInfo(MOBILE_CLIENT_PLATFORM, null, null,
-                        "Android", "16", 36));
     }
 
     @Nonnull
