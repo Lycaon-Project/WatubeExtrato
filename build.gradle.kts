@@ -29,7 +29,6 @@ subprojects {
     tasks.withType<Javadoc>().configureEach {
         (options as StandardJavadocDocletOptions).apply {
             encoding = Charsets.UTF_8.toString()
-            links = listOf("https://docs.oracle.com/javase/17/docs/api/")
             tags = listOf(
                 "apiNote:a:API Note:",
                 "implSpec:a:Implementation Requirements:",
@@ -44,7 +43,6 @@ tasks.register<Javadoc>("aggregatedJavadocs") {
     description = "Generates aggregated Javadocs for all subprojects."
     (options as StandardJavadocDocletOptions).apply {
         encoding = Charsets.UTF_8.toString()
-        links = listOf("https://docs.oracle.com/javase/11/docs/api/")
         title = "NewPipe Extractor ${rootProject.version}"
         tags = listOf(
             "apiNote:a:API Note:",

@@ -6,16 +6,18 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
-        google()
         mavenCentral()
     }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
         mavenCentral()
-        maven(url = "https://jitpack.io")
+        // JitPack builds any GitHub repository on demand: only nanojson comes from it
+        exclusiveContent {
+            forRepository { maven(url = "https://jitpack.io") }
+            filter { includeGroup("com.github.TeamNewPipe") }
+        }
     }
 }
 include("extractor", "timeago-generator")

@@ -5,6 +5,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.downloader.Response;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.utils.Parser;
@@ -13,6 +14,8 @@ import javax.annotation.Nonnull;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.regex.Pattern;
+
+import static org.schabi.newpipe.extractor.utils.Utils.isNullOrEmpty;
 
 /**
  * The extractor of YouTube's base JavaScript player file.
@@ -30,6 +33,8 @@ import java.util.regex.Pattern;
 final class YoutubeJavaScriptExtractor {
 
     private static final String HTTPS = "https:";
+    // the player code gets executed: it is only accepted from this host
+    private static final String JAVASCRIPT_PLAYER_HOST = "www.youtube.com";
     private static final String BASE_JS_PLAYER_URL_FORMAT =
             "https://www.youtube.com/s/player/%s/player_ias.vflset/en_GB/base.js";
     private static final Pattern IFRAME_RES_JS_BASE_PLAYER_HASH_PATTERN = Pattern.compile(
@@ -52,28 +57,12 @@ final class YoutubeJavaScriptExtractor {
     @Nonnull
     static String extractJavaScriptPlayerCode(@Nonnull final String videoId)
             throws ParsingException {
-        String url;
         try {
-            url = YoutubeJavaScriptExtractor.extractJavaScriptUrlWithIframeResource();
-            final String playerJsUrl = YoutubeJavaScriptExtractor.cleanJavaScriptUrl(url);
-
-            // Assert that the URL we extracted and built is valid
-            new URL(playerJsUrl);
-
-            return YoutubeJavaScriptExtractor.downloadJavaScriptCode(playerJsUrl);
+            return downloadJavaScriptCode(
+                    cleanJavaScriptUrl(extractJavaScriptUrlWithIframeResource()));
         } catch (final Exception e) {
-            url = YoutubeJavaScriptExtractor.extractJavaScriptUrlWithEmbedWatchPage(videoId);
-            final String playerJsUrl = YoutubeJavaScriptExtractor.cleanJavaScriptUrl(url);
-
-            try {
-                // Assert that the URL we extracted and built is valid
-                new URL(playerJsUrl);
-            } catch (final MalformedURLException exception) {
-                throw new ParsingException(
-                        "The extracted and built JavaScript URL is invalid", exception);
-            }
-
-            return YoutubeJavaScriptExtractor.downloadJavaScriptCode(playerJsUrl);
+            return downloadJavaScriptCode(
+                    cleanJavaScriptUrl(extractJavaScriptUrlWithEmbedWatchPage(videoId)));
         }
     }
 
@@ -153,12 +142,31 @@ final class YoutubeJavaScriptExtractor {
     @Nonnull
     private static String downloadJavaScriptCode(@Nonnull final String javaScriptPlayerUrl)
             throws ParsingException {
+        checkJavaScriptPlayerUrl(javaScriptPlayerUrl);
+        final Response response;
         try {
-            return NewPipe.getDownloader()
-                    .get(javaScriptPlayerUrl, Localization.DEFAULT)
-                    .responseBody();
+            response = NewPipe.getDownloader().get(javaScriptPlayerUrl, Localization.DEFAULT);
         } catch (final Exception e) {
             throw new ParsingException("Could not get JavaScript base player's code", e);
+        }
+        // the downloader may have followed redirects
+        if (!isNullOrEmpty(response.latestUrl())) {
+            checkJavaScriptPlayerUrl(response.latestUrl());
+        }
+        return response.responseBody();
+    }
+
+    private static void checkJavaScriptPlayerUrl(@Nonnull final String javaScriptPlayerUrl)
+            throws ParsingException {
+        final URL url;
+        try {
+            url = new URL(javaScriptPlayerUrl);
+        } catch (final MalformedURLException e) {
+            throw new ParsingException("The JavaScript base player's URL is invalid", e);
+        }
+        if (!"https".equals(url.getProtocol()) || !JAVASCRIPT_PLAYER_HOST.equals(url.getHost())) {
+            throw new ParsingException("Refusing JavaScript base player's code from "
+                    + url.getProtocol() + "://" + url.getHost());
         }
     }
 }

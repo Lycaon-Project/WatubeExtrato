@@ -7,9 +7,9 @@ import org.schabi.newpipe.extractor.utils.JavaScript;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manage the extraction and the usage of YouTube's player JavaScript needed data in the YouTube
@@ -29,26 +29,30 @@ import java.util.Objects;
  */
 public final class YoutubeJavaScriptPlayerManager {
 
+    // Streams are extracted on several threads at once: the caches are shared between them.
+    // Each streaming URL brings its own throttling parameter, so the map is bounded.
+    private static final int MAX_CACHED_THROTTLING_PARAMETERS = 512;
     @Nonnull
-    private static final Map<String, String> CACHED_THROTTLING_PARAMETERS = new HashMap<>();
+    private static final Map<String, String> CACHED_THROTTLING_PARAMETERS =
+            new ConcurrentHashMap<>();
 
-    private static String cachedJavaScriptPlayerCode;
-
-    @Nullable
-    private static Integer cachedSignatureTimestamp;
-    @Nullable
-    private static String cachedSignatureDeobfuscationFunction;
-    @Nullable
-    private static String cachedThrottlingDeobfuscationFunctionName;
-    @Nullable
-    private static String cachedThrottlingDeobfuscationFunction;
+    private static volatile String cachedJavaScriptPlayerCode;
 
     @Nullable
-    private static ParsingException throttlingDeobfFuncExtractionEx;
+    private static volatile Integer cachedSignatureTimestamp;
     @Nullable
-    private static ParsingException sigDeobFuncExtractionEx;
+    private static volatile String cachedSignatureDeobfuscationFunction;
     @Nullable
-    private static ParsingException sigTimestampExtractionEx;
+    private static volatile String cachedThrottlingDeobfuscationFunctionName;
+    @Nullable
+    private static volatile String cachedThrottlingDeobfuscationFunction;
+
+    @Nullable
+    private static volatile ParsingException throttlingDeobfFuncExtractionEx;
+    @Nullable
+    private static volatile ParsingException sigDeobFuncExtractionEx;
+    @Nullable
+    private static volatile ParsingException sigTimestampExtractionEx;
 
     private YoutubeJavaScriptPlayerManager() {
     }
@@ -270,6 +274,9 @@ public final class YoutubeJavaScriptPlayerManager {
                 throw new IllegalStateException("Extracted n-parameter is empty");
             }
 
+            if (CACHED_THROTTLING_PARAMETERS.size() >= MAX_CACHED_THROTTLING_PARAMETERS) {
+                CACHED_THROTTLING_PARAMETERS.clear();
+            }
             CACHED_THROTTLING_PARAMETERS.put(
                     obfuscatedThrottlingParameter, deobfuscatedThrottlingParameter);
 
