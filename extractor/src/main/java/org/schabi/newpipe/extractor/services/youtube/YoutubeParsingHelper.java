@@ -72,6 +72,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -182,7 +183,9 @@ public final class YoutubeParsingHelper {
     private static final String CONTENT_PLAYBACK_NONCE_ALPHABET =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-    private static Random numberGenerator = new Random();
+    // Nonces must not be predictable: the state of java.util.Random can be recovered from a few
+    // nonces, which would let the server link requests of the same process to each other
+    private static volatile Random numberGenerator = new SecureRandom();
 
     private static final String FEED_BASE_CHANNEL_ID =
             "https://www.youtube.com/feeds/videos.xml?channel_id=";

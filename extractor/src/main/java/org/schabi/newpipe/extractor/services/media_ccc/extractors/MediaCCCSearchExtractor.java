@@ -23,6 +23,7 @@ import org.schabi.newpipe.extractor.linkhandler.SearchQueryHandler;
 import org.schabi.newpipe.extractor.search.SearchExtractor;
 import org.schabi.newpipe.extractor.services.media_ccc.extractors.infoItems.MediaCCCStreamInfoItemExtractor;
 import org.schabi.newpipe.extractor.services.media_ccc.linkHandler.MediaCCCConferencesListLinkHandlerFactory;
+import org.schabi.newpipe.extractor.utils.ExtractorLogger;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,6 +32,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 public class MediaCCCSearchExtractor extends SearchExtractor {
+    private static final String TAG = MediaCCCSearchExtractor.class.getSimpleName();
     private JsonObject doc;
     private MediaCCCConferenceKiosk conferenceKiosk;
 
@@ -43,7 +45,7 @@ public class MediaCCCSearchExtractor extends SearchExtractor {
                             .fromId("conferences"),
                     "conferences");
         } catch (final Exception e) {
-            e.printStackTrace();
+            ExtractorLogger.e(TAG, "Could not create the conferences kiosk", e);
         }
     }
 

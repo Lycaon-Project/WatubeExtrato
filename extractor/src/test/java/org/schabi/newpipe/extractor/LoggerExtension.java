@@ -18,6 +18,6 @@ public class LoggerExtension implements BeforeAllCallback {
     public void beforeAll(ExtensionContext context) {
         if (set) return;
         set = true;
-        ExtractorLogger.setLogger(new ExtractorLogger.ConsoleLogger());
+        ExtractorLogger.setLogger(new ConsoleLogger());
     }
 }
