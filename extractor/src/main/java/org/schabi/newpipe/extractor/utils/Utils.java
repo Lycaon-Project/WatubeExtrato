@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -22,6 +23,9 @@ public final class Utils {
     public static final String HTTPS = "https://";
     private static final Pattern M_PATTERN = Pattern.compile("(https?)?://m\\.");
     private static final Pattern WWW_PATTERN = Pattern.compile("(https?)?://www\\.");
+    private static final Pattern NUMBER_WORD_MULTIPLIER =
+            Pattern.compile("[\\d]+([\\.,][\\d]+)?([KMBkmb])+");
+    private static final Pattern NUMBER_WORD_NUMBER = Pattern.compile("([\\d]+([\\.,][\\d]+)?)");
 
     private Utils() {
         // no instance
@@ -84,13 +88,11 @@ public final class Utils {
      */
     public static long mixedNumberWordToLong(final String numberWord)
             throws NumberFormatException, ParsingException {
-        String multiplier = "";
-        try {
-            multiplier = Parser.matchGroup("[\\d]+([\\.,][\\d]+)?([KMBkmb])+", numberWord, 2);
-        } catch (final ParsingException ignored) {
-        }
+        // runs for every item of a list: precompiled patterns, no exception without a multiplier
+        final Matcher multiplierMatcher = NUMBER_WORD_MULTIPLIER.matcher(numberWord);
+        final String multiplier = multiplierMatcher.find() ? multiplierMatcher.group(2) : "";
         final double count = Double.parseDouble(
-                Parser.matchGroup1("([\\d]+([\\.,][\\d]+)?)", numberWord).replace(",", "."));
+                Parser.matchGroup1(NUMBER_WORD_NUMBER, numberWord).replace(",", "."));
         switch (multiplier.toUpperCase()) {
             case "K":
                 return (long) (count * 1e3);
@@ -110,7 +112,7 @@ public final class Utils {
      * @param url     the url to be tested
      */
     public static void checkUrl(final String pattern, final String url) throws ParsingException {
-        checkUrl(Pattern.compile(pattern), url);
+        checkUrl(Parser.compile(pattern), url);
     }
 
     /**

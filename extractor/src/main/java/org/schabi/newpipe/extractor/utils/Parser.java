@@ -24,6 +24,7 @@ import org.schabi.newpipe.extractor.exceptions.ParsingException;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -35,7 +36,26 @@ import javax.annotation.Nonnull;
  */
 public final class Parser {
 
+    // The String overloads run per item (link handlers, counts): compile each pattern once.
+    // Bounded, in case a caller builds its patterns on the fly.
+    private static final int MAX_CACHED_PATTERNS = 256;
+    private static final Map<String, Pattern> PATTERNS = new ConcurrentHashMap<>();
+
     private Parser() {
+    }
+
+    @Nonnull
+    static Pattern compile(@Nonnull final String pattern) {
+        final Pattern cached = PATTERNS.get(pattern);
+        if (cached != null) {
+            return cached;
+        }
+        if (PATTERNS.size() >= MAX_CACHED_PATTERNS) {
+            PATTERNS.clear();
+        }
+        final Pattern compiled = Pattern.compile(pattern);
+        PATTERNS.put(pattern, compiled);
+        return compiled;
     }
 
     public static class RegexException extends ParsingException {
@@ -102,7 +122,7 @@ public final class Parser {
     @Nonnull
     public static String matchGroup(final String pattern, final String input, final int group)
             throws RegexException {
-        return matchGroup(Pattern.compile(pattern), input, group);
+        return matchGroup(compile(pattern), input, group);
     }
 
     /**
@@ -156,7 +176,7 @@ public final class Parser {
     }
 
     public static boolean isMatch(final String pattern, final String input) {
-        return isMatch(Pattern.compile(pattern), input);
+        return isMatch(compile(pattern), input);
     }
 
     public static boolean isMatch(@Nonnull final Pattern pattern, final String input) {
