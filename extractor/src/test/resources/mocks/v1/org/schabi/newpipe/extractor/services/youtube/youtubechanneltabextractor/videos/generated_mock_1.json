@@ -3,17 +3,17 @@
     "httpMethod": "POST",
     "url": "https://www.youtube.com/youtubei/v1/navigation/resolve_url?prettyPrint\u003dfalse",
     "headers": {
-      "Referer": [
+      "Origin": [
         "https://www.youtube.com"
       ],
-      "Origin": [
+      "Referer": [
         "https://www.youtube.com"
       ],
       "Cookie": [
         "SOCS\u003dCAE\u003d"
       ],
       "X-YouTube-Client-Version": [
-        "2.20260630.03.00"
+        "2.20261019.01.00"
       ],
       "X-YouTube-Client-Name": [
         "1"
@@ -113,13 +113,13 @@
       48,
       50,
       54,
+      49,
       48,
-      54,
-      51,
-      48,
+      49,
+      57,
       46,
       48,
-      51,
+      49,
       46,
       48,
       48,
@@ -368,7 +368,7 @@
         "application/json; charset\u003dUTF-8"
       ],
       "date": [
-        "Thu, 02 Jul 2026 07:35:04 GMT"
+        "Tue, 20 Oct 2026 15:31:05 GMT"
       ],
       "server": [
         "scaffolding on HTTPServer2"
@@ -388,7 +388,7 @@
         "0"
       ]
     },
-    "responseBody": "{\"responseContext\":{\"visitorData\":\"CgtwcjFVTmg2c3o1OCioqZjSBjIKCgJERRIEEgAgDA%3D%3D\",\"serviceTrackingParams\":[{\"service\":\"CSI\",\"params\":[{\"key\":\"c\",\"value\":\"WEB\"},{\"key\":\"cver\",\"value\":\"2.20260630.03.00\"},{\"key\":\"yt_li\",\"value\":\"0\"},{\"key\":\"ResolveUrl_rid\",\"value\":\"0xba7e11f7ad284e1b\"}]},{\"service\":\"GFEEDBACK\",\"params\":[{\"key\":\"logged_in\",\"value\":\"0\"},{\"key\":\"visitor_data\",\"value\":\"CgtwcjFVTmg2c3o1OCioqZjSBjIKCgJERRIEEgAgDA%3D%3D\"}]},{\"service\":\"GUIDED_HELP\",\"params\":[{\"key\":\"logged_in\",\"value\":\"0\"}]},{\"service\":\"ECATCHER\",\"params\":[{\"key\":\"client.version\",\"value\":\"2.20260630\"},{\"key\":\"client.name\",\"value\":\"WEB\"}]}],\"mainAppWebResponseContext\":{\"loggedOut\":true},\"responseId\":\"IhMIz6TRxb2zlQMVyD0GAB19thY3\",\"webResponseContextExtensionData\":{\"hasDecorated\":true}},\"endpoint\":{\"clickTrackingParams\":\"IhMIz6TRxb2zlQMVyD0GAB19thY3MghleHRlcm5hbMoBBIqDT58\u003d\",\"commandMetadata\":{\"webCommandMetadata\":{\"url\":\"/youtubei/v1/navigation/resolve_url\",\"webPageType\":\"WEB_PAGE_TYPE_CHANNEL\",\"rootVe\":3611,\"apiUrl\":\"/youtubei/v1/browse\"},\"resolveUrlCommandMetadata\":{\"isVanityUrl\":true}},\"browseEndpoint\":{\"browseId\":\"UCTwECeGqMZee77BjdoYtI2Q\",\"params\":\"EgC4AQCSAwDyBgQKAjIA\"}}}",
+    "responseBody": "{\"responseContext\":{\"visitorData\":\"Cgt1bkFzS1dQWGJpayi5kt7WBjIKCgJERRIEEgAgUA%3D%3D\",\"serviceTrackingParams\":[{\"service\":\"CSI\",\"params\":[{\"key\":\"c\",\"value\":\"WEB\"},{\"key\":\"cver\",\"value\":\"2.20261019.01.00\"},{\"key\":\"yt_li\",\"value\":\"0\"},{\"key\":\"ResolveUrl_rid\",\"value\":\"0xef3daddf938f7c57\"}]},{\"service\":\"GFEEDBACK\",\"params\":[{\"key\":\"logged_in\",\"value\":\"0\"},{\"key\":\"visitor_data\",\"value\":\"Cgt1bkFzS1dQWGJpayi5kt7WBjIKCgJERRIEEgAgUA%3D%3D\"}]},{\"service\":\"GUIDED_HELP\",\"params\":[{\"key\":\"logged_in\",\"value\":\"0\"}]},{\"service\":\"ECATCHER\",\"params\":[{\"key\":\"client.version\",\"value\":\"2.20261019\"},{\"key\":\"client.name\",\"value\":\"WEB\"}]}],\"mainAppWebResponseContext\":{\"loggedOut\":true},\"responseId\":\"IhMIgYmkjfXIlwMVU0xPBB3aiQFr\",\"webResponseContextExtensionData\":{\"hasDecorated\":true}},\"endpoint\":{\"clickTrackingParams\":\"IhMIgYmkjfXIlwMVU0xPBB3aiQFrMghleHRlcm5hbMoBBB-aaHU\u003d\",\"commandMetadata\":{\"webCommandMetadata\":{\"url\":\"/youtubei/v1/navigation/resolve_url\",\"webPageType\":\"WEB_PAGE_TYPE_CHANNEL\",\"rootVe\":3611,\"apiUrl\":\"/youtubei/v1/browse\"},\"resolveUrlCommandMetadata\":{\"isVanityUrl\":true}},\"browseEndpoint\":{\"browseId\":\"UCTwECeGqMZee77BjdoYtI2Q\",\"params\":\"EgC4AQCSAwDyBgQKAjIA\"}}}",
     "latestUrl": "https://www.youtube.com/youtubei/v1/navigation/resolve_url?prettyPrint\u003dfalse"
   }
 }

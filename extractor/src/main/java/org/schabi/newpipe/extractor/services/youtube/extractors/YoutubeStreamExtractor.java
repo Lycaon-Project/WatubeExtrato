@@ -92,7 +92,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -110,6 +109,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
     private static final String ADAPTIVE_FORMATS = "adaptiveFormats";
     private static final String STREAMING_DATA = "streamingData";
     private static final String SERVER_ABR_STREAMING_URL = "serverAbrStreamingUrl";
+    private static final String SABR_URL_PREFIX = "sabr://";
     private static final String NEXT = "next";
     private static final String SIGNATURE_CIPHER = "signatureCipher";
     private static final String CIPHER = "cipher";
@@ -122,15 +122,11 @@ public class YoutubeStreamExtractor extends StreamExtractor {
     private static final String VIDEO_DETAILS = "videoDetails";
     private static final String TITLE = "title";
 
-    private static boolean fetchIosClient;
-
     private JsonObject playerResponse;
     private JsonObject nextResponse;
 
     @Nullable
     private JsonObject visionOsStreamingData;
-    @Nullable
-    private JsonObject iosStreamingData;
 
     private JsonObject videoPrimaryInfoRenderer;
     private JsonObject videoSecondaryInfoRenderer;
@@ -145,7 +141,6 @@ public class YoutubeStreamExtractor extends StreamExtractor {
     // Also because a nonce should be unique, it should be different between clients used, so
     // two different strings are used.
     private String visionOsCpn;
-    private String iosCpn;
 
     public YoutubeStreamExtractor(final StreamingService service, final LinkHandler linkHandler) {
         super(service, linkHandler);
@@ -322,8 +317,8 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                     .getString("lengthSeconds");
             return Long.parseLong(duration);
         } catch (final Exception e) {
-            return getDurationFromFirstAdaptiveFormat(Arrays.asList(
-                    visionOsStreamingData, iosStreamingData));
+            return getDurationFromFirstAdaptiveFormat(Collections.singletonList(
+                    visionOsStreamingData));
         }
     }
 
@@ -619,15 +614,6 @@ public class YoutubeStreamExtractor extends StreamExtractor {
 
     @Nonnull
     @Override
-    public String getDashMpdUrl() throws ParsingException {
-        assertPageFetched();
-
-        // There is no DASH manifest available with the iOS and visionOS clients
-        return "";
-    }
-
-    @Nonnull
-    @Override
     public String getHlsUrl() throws ParsingException {
         assertPageFetched();
 
@@ -635,13 +621,11 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         // returned has separated audio and video streams
         // Also, on videos, non-Apple clients don't have an HLS manifest URL in their player
         // response
-        return java.util.stream.Stream.of(visionOsStreamingData, iosStreamingData)
-                .filter(Objects::nonNull)
-                .map(streamingData -> streamingData.getString("hlsManifestUrl"))
-                .filter(manifestUrl -> !isNullOrEmpty(manifestUrl))
-                .findFirst()
-                .map(manifestUrl -> manifestUrl + "?")
-                .orElse("");
+        if (visionOsStreamingData == null) {
+            return "";
+        }
+        final String manifestUrl = visionOsStreamingData.getString("hlsManifestUrl");
+        return YoutubeParsingHelper.isTrustedStreamingUrl(manifestUrl) ? manifestUrl + "?" : "";
     }
 
     @Override
@@ -668,15 +652,14 @@ public class YoutubeStreamExtractor extends StreamExtractor {
     @Override
     public String getServerAbrStreamingUrl() {
         assertPageFetched();
-        return java.util.stream.Stream.of(
-            new Pair<>(visionOsStreamingData, visionOsCpn),
-            new Pair<>(iosStreamingData, iosCpn))
-            .filter(data -> data.getFirst() != null
-                                && data.getFirst().has(SERVER_ABR_STREAMING_URL))
-                .map(data -> data.getFirst().getString(SERVER_ABR_STREAMING_URL)
-                        + "&cpn=" + data.getSecond())
-            .findFirst()
-            .get();
+        // a video without SABR data has no URL: Optional.get() threw NoSuchElementException,
+        // which StreamInfo then recorded as an extraction error of every such video
+        final String sabrUrl = visionOsStreamingData == null ? null
+                : visionOsStreamingData.getString(SERVER_ABR_STREAMING_URL);
+        if (!YoutubeParsingHelper.isTrustedStreamingUrl(sabrUrl)) {
+            return null;
+        }
+        return sabrUrl + "&cpn=" + visionOsCpn;
     }
 
     @Override
@@ -839,12 +822,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         final ContentCountry contentCountry = getExtractorContentCountry();
 
         fetchVisionOsClient(localization, contentCountry, videoId);
-
         setStreamType();
-
-        if (fetchIosClient) {
-            fetchIosClient(localization, contentCountry, videoId);
-        }
 
         fetchWebClientMetadataAndSetThumbnails(localization, contentCountry, videoId);
 
@@ -874,7 +852,12 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                             "This age-restricted video cannot be watched anonymously");
                 }
 
-                if (reason.contains("private")) {
+                if (playabilityStatus.getArray("messages")
+                        .stream()
+                        .filter(String.class::isInstance)
+                        .map(String.class::cast)
+                        .anyMatch(message -> !isNullOrEmpty(message)
+                                && message.contains("private"))) {
                     throw new PrivateContentException("This video is private");
                 }
 
@@ -913,37 +896,14 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         throw new ContentNotAvailableException("Got error " + status + ": \"" + reason + "\"");
     }
 
-    private void fetchIosClient(@Nonnull final Localization localization,
-                                @Nonnull final ContentCountry contentCountry,
-                                @Nonnull final String videoId) {
-        try {
-            iosCpn = generateContentPlaybackNonce();
-
-            final JsonObject iosPlayerResponse = YoutubeStreamHelper.getIosPlayerResponse(
-                    contentCountry, localization, videoId, iosCpn);
-
-            if (!isPlayerResponseNotValid(iosPlayerResponse, videoId)) {
-                iosStreamingData = iosPlayerResponse.getObject(STREAMING_DATA);
-
-                if (isNullOrEmpty(playerCaptionsTracklistRenderer)) {
-                    playerCaptionsTracklistRenderer = iosPlayerResponse.getObject(CAPTIONS)
-                            .getObject(PLAYER_CAPTIONS_TRACKLIST_RENDERER);
-                }
-            }
-        } catch (final Exception ignored) {
-            // Ignore exceptions related to IOS client fetching or parsing, as it is not
-            // compulsory to play contents
-        }
-    }
-
     private void fetchVisionOsClient(@Nonnull final Localization localization,
                                      @Nonnull final ContentCountry contentCountry,
-                                     @Nonnull final String videoId)
-            throws IOException, ExtractionException {
+                                     @Nonnull final String videoId) throws IOException,
+            ExtractionException {
         visionOsCpn = generateContentPlaybackNonce();
 
-        playerResponse = YoutubeStreamHelper.getVisionOsPlayerResponse(
-                contentCountry, localization, videoId, visionOsCpn);
+        playerResponse = YoutubeStreamHelper.getVisionOsPlayerResponse(contentCountry,
+                localization, videoId, visionOsCpn);
 
         checkPlayabilityStatus(playerResponse.getObject(PLAYABILITY_STATUS));
         if (isPlayerResponseNotValid(playerResponse, videoId)) {
@@ -952,10 +912,8 @@ public class YoutubeStreamExtractor extends StreamExtractor {
 
         visionOsStreamingData = playerResponse.getObject(STREAMING_DATA);
 
-        if (isNullOrEmpty(playerCaptionsTracklistRenderer)) {
-            playerCaptionsTracklistRenderer = playerResponse.getObject(CAPTIONS)
-                    .getObject(PLAYER_CAPTIONS_TRACKLIST_RENDERER);
-        }
+        playerCaptionsTracklistRenderer = playerResponse.getObject(CAPTIONS)
+                .getObject(PLAYER_CAPTIONS_TRACKLIST_RENDERER);
     }
 
     private void fetchWebClientMetadataAndSetThumbnails(
@@ -1085,8 +1043,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
             final List<T> streamList = new ArrayList<>();
 
             java.util.stream.Stream.of(
-                    new Pair<>(visionOsStreamingData, visionOsCpn),
-                    new Pair<>(iosStreamingData, iosCpn))
+                    new Pair<>(visionOsStreamingData, visionOsCpn))
                     .flatMap(pair -> getStreamsFromStreamingDataKey(
                             videoId,
                             pair.getFirst(),
@@ -1270,7 +1227,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
             } else {
                 //HACK: SABR formats share a common URL (`serverAbrStreamingUrl`) and do not have
                 // individual URLs
-                streamUrl = "sabr://" + itagItem.id;
+                streamUrl = SABR_URL_PREFIX + itagItem.id;
             }
         }
 
@@ -1282,6 +1239,14 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         // propagated to the parent which ignores streams in this case
         streamUrl = YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated(
                 videoId, streamUrl);
+
+        // security: a format whose URL leads anywhere but YouTube's video servers is dropped
+        // (the caller ignores the formats that throw), whatever the response contained
+        if (!streamUrl.startsWith(SABR_URL_PREFIX)
+                && !YoutubeParsingHelper.isTrustedStreamingUrl(streamUrl)) {
+            throw new ParsingException("Streaming URL of itag " + itagItem.id
+                    + " is not a YouTube video server URL");
+        }
 
         // Add the content playback nonce to the stream URL
         streamUrl += "&" + CPN + "=" + contentPlaybackNonce;
@@ -1571,23 +1536,4 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                 .getArray("contents"));
     }
 
-    /**
-     * Set whether to fetch the iOS player responses.
-     *
-     * <p>
-     * This method allows fetching the iOS player response, which can be useful in scenarios where
-     * streams from the iOS player response are needed, especially HLS manifests.
-     * </p>
-     *
-     * <p>
-     * Note that at the time of writing, YouTube is rolling out a {@code poToken} requirement on
-     * this client, formats from HLS manifests do not seem to be affected.
-     * </p>
-     *
-     * @param fetchIosClient whether to fetch the iOS client
-     */
-    @SuppressWarnings("unused")
-    public static void setFetchIosClient(final boolean fetchIosClient) {
-        YoutubeStreamExtractor.fetchIosClient = fetchIosClient;
-    }
 }

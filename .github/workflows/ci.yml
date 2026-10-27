@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  # REAL (network) runs are started by hand only: the former daily schedule ran the whole
+  # suite against youtube.com from GitHub's datacenter addresses, which YouTube answers with
+  # bot checks, so it failed every night without telling anything about the code.
   workflow_dispatch:
     inputs:
       downloaderType:
@@ -9,9 +12,6 @@ on:
         options:
           - MOCK
           - REAL
-  schedule:
-      # once per day
-    - cron: 0 0 * * *
   push:
     branches:
       - dev
@@ -22,21 +22,31 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # a newer push supersedes the run of the previous one
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # the job never pushes: do not leave the token in .git/config
           persist-credentials: false
 
+      # the build compiles with a Java 17 toolchain and runs Checkstyle on Java 21: install
+      # both instead of relying on whatever JDKs the runner image happens to ship
       - name: set up JDK
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
-          java-version: 21
+          java-version: |
+            17
+            21
           distribution: 'temurin'
-      
+
       - name: Cache Gradle wrapper dists
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -48,27 +58,32 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          # the build scripts are Kotlin DSL: '**/*.gradle' matched nothing, so the key never
+          # changed and a stale dependency cache was restored forever
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml') }}
           restore-keys: ${{ runner.os }}-gradle
 
         # See gradle file for difference between downloaders
       - name: Build and run Tests
+        env:
+          # passed through the environment, never interpolated into the script
+          DOWNLOADER_TYPE: ${{ github.event.inputs.downloaderType || 'MOCK' }}
         run: |
-          downloader_type="${{ github.event.inputs.downloaderType || 'MOCK' }}"
-          if [[ "$GITHUB_EVENT_NAME" == 'schedule' ]]; then
-            downloader_type="REAL"
-          fi
+          case "$DOWNLOADER_TYPE" in
+            MOCK|REAL) ;;
+            *) echo "Unknown downloader type: $DOWNLOADER_TYPE" >&2; exit 1 ;;
+          esac
 
-          echo "Running with $downloader_type downloader"
+          echo "Running with $DOWNLOADER_TYPE downloader"
           ./gradlew check \
             -Dorg.gradle.welcome=never \
             --stacktrace \
-            -Ddownloader=$downloader_type \
+            -Ddownloader="$DOWNLOADER_TYPE" \
             -Dcom.google.protobuf.error_on_unsafe_pre22_gencode
 
       - name: Upload test reports when failure occurs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: NewPipeExtractor-test-reports
+          name: WatubeExtrato-test-reports
           path: extractor/build/reports/tests/test/**

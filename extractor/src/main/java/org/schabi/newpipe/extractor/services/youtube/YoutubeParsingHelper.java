@@ -21,11 +21,7 @@
 package org.schabi.newpipe.extractor.services.youtube;
 
 import static org.schabi.newpipe.extractor.NewPipe.getDownloader;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.ANDROID_CLIENT_VERSION;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.DESKTOP_CLIENT_PLATFORM;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.IOS_CLIENT_VERSION;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.IOS_DEVICE_MODEL;
-import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.IOS_USER_AGENT_VERSION;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.VISIONOS_CLIENT_VERSION;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.VISIONOS_DEVICE_MODEL;
 import static org.schabi.newpipe.extractor.services.youtube.ClientsConstants.VISIONOS_USER_AGENT_VERSION;
@@ -66,6 +62,7 @@ import org.schabi.newpipe.extractor.stream.AudioTrackType;
 import org.schabi.newpipe.extractor.utils.JsonUtils;
 import org.schabi.newpipe.extractor.utils.Parser;
 import org.schabi.newpipe.extractor.utils.RandomStringFromAlphabetGenerator;
+import org.schabi.newpipe.extractor.utils.UrlPrivacy;
 import org.schabi.newpipe.extractor.utils.Utils;
 
 import java.io.IOException;
@@ -186,6 +183,8 @@ public final class YoutubeParsingHelper {
     // Nonces must not be predictable: the state of java.util.Random can be recovered from a few
     // nonces, which would let the server link requests of the same process to each other
     private static volatile Random numberGenerator = new SecureRandom();
+
+    private static final String GOOGLE_VIDEO_HOST_SUFFIX = ".googlevideo.com";
 
     private static final String FEED_BASE_CHANNEL_ID =
             "https://www.youtube.com/feeds/videos.xml?channel_id=";
@@ -709,14 +708,22 @@ public final class YoutubeParsingHelper {
             if (internUrl.startsWith("/redirect?")) {
                 // q parameter can be the first parameter
                 internUrl = internUrl.substring(10);
+                // privacy: the target is opened directly, so YouTube never learns which link was
+                // followed, and without the trackers the target site appended to it
                 final String[] params = internUrl.split("&");
                 for (final String param : params) {
-                    if (param.split("=")[0].equals("q")) {
-                        return Utils.decodeUrlUtf8(param.split("=")[1]);
+                    if (param.startsWith("q=")) {
+                        try {
+                            return UrlPrivacy.removeTrackingParameters(
+                                    Utils.decodeUrlUtf8(param.substring(2)));
+                        } catch (final IllegalArgumentException e) {
+                            // a malformed escape sequence: no usable target
+                            return null;
+                        }
                     }
                 }
             } else if (internUrl.startsWith("http")) {
-                return internUrl;
+                return UrlPrivacy.removeTrackingParameters(internUrl);
             } else if (internUrl.startsWith("/channel") || internUrl.startsWith("/user")
                     || internUrl.startsWith("/watch")) {
                 return "https://www.youtube.com" + internUrl;
@@ -1083,48 +1090,6 @@ public final class YoutubeParsingHelper {
     }
 
     /**
-     * Get the user-agent string used as the user-agent for InnerTube requests with the Android
-     * client.
-     *
-     * <p>
-     * If the {@link Localization} provided is {@code null}, fallbacks to
-     * {@link Localization#DEFAULT the default one}.
-     * </p>
-     *
-     * @param localization the {@link Localization} to set in the user-agent
-     * @return the Android user-agent used for InnerTube requests with the Android client,
-     * depending on the {@link Localization} provided
-     */
-    @Nonnull
-    public static String getAndroidUserAgent(@Nullable final Localization localization) {
-        return "com.google.android.youtube/" + ANDROID_CLIENT_VERSION
-                + " (Linux; U; Android 15; "
-                + (localization != null ? localization : Localization.DEFAULT).getCountryCode()
-                + ") gzip";
-    }
-
-    /**
-     * Get the user-agent string used as the user-agent for InnerTube requests with the iOS
-     * client.
-     *
-     * <p>
-     * If the {@link Localization} provided is {@code null}, fallbacks to
-     * {@link Localization#DEFAULT the default one}.
-     * </p>
-     *
-     * @param localization the {@link Localization} to set in the user-agent
-     * @return the iOS user-agent used for InnerTube requests with the iOS client, depending on the
-     * {@link Localization} provided
-     */
-    @Nonnull
-    public static String getIosUserAgent(@Nullable final Localization localization) {
-        return "com.google.ios.youtube/" + IOS_CLIENT_VERSION + "(" + IOS_DEVICE_MODEL
-                + "; U; CPU iOS " + IOS_USER_AGENT_VERSION + " like Mac OS X; "
-                + (localization != null ? localization : Localization.DEFAULT).getCountryCode()
-                + ")";
-    }
-
-    /**
      * Get the user-agent string used as the user-agent for InnerTube requests with the visionOS
      * client.
      *
@@ -1380,33 +1345,29 @@ public final class YoutubeParsingHelper {
     }
 
     /**
-     * Check if the streaming URL is from the YouTube {@code WEB_EMBEDDED_PLAYER} client.
+     * Check that a streaming URL received from YouTube points to its video servers, over https.
      *
-     * @param url the streaming URL to be checked.
-     * @return true if it's a {@code WEB_EMBEDDED_PLAYER} streaming URL, false otherwise
-     */
-    public static boolean isWebEmbeddedPlayerStreamingUrl(@Nonnull final String url) {
-        return Parser.isMatch(C_WEB_EMBEDDED_PLAYER_PATTERN, url);
-    }
-
-    /**
-     * Check if the streaming URL is a URL from the YouTube {@code ANDROID} client.
+     * <p>
+     * Streaming URLs are fetched (and played) as they come: a tampered or injected response
+     * must not be able to send the client to any other host, where the request would disclose
+     * the user's address or deliver content of an attacker.
+     * </p>
      *
-     * @param url the streaming URL to be checked.
-     * @return true if it's a {@code ANDROID} streaming URL, false otherwise
+     * @param url a streaming, manifest or SABR URL
+     * @return whether the URL is an https URL of a {@code googlevideo.com} host
      */
-    public static boolean isAndroidStreamingUrl(@Nonnull final String url) {
-        return Parser.isMatch(C_ANDROID_PATTERN, url);
-    }
-
-    /**
-     * Check if the streaming URL is a URL from the YouTube {@code IOS} client.
-     *
-     * @param url the streaming URL on which check if it's a {@code IOS} streaming URL.
-     * @return true if it's a {@code IOS} streaming URL, false otherwise
-     */
-    public static boolean isIosStreamingUrl(@Nonnull final String url) {
-        return Parser.isMatch(C_IOS_PATTERN, url);
+    public static boolean isTrustedStreamingUrl(@Nullable final String url) {
+        if (isNullOrEmpty(url)) {
+            return false;
+        }
+        try {
+            final URL parsed = new URL(url);
+            final String host = parsed.getHost().toLowerCase(Locale.ROOT);
+            return "https".equals(parsed.getProtocol()) && parsed.getUserInfo() == null
+                    && host.endsWith(GOOGLE_VIDEO_HOST_SUFFIX);
+        } catch (final MalformedURLException e) {
+            return false;
+        }
     }
 
     /**

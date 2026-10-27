@@ -9,13 +9,23 @@ import org.mozilla.javascript.ScriptableObject;
 
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 /**
  * Runs JavaScript code taken from a remote page (YouTube's player) in a locked-down Rhino
  * context: interpreted mode, standard objects only, no access to any Java class, and a bounded
  * run time and call depth, so that an unexpected or hostile script can neither reach the
  * application nor hang the thread running it.
+ *
+ * <p>
+ * An application can hand the runs to its own engine with
+ * {@link #setExternalJavaScriptInterpreter(JavaScriptInterpreter)}; it then owns the isolation
+ * of that engine.
+ * </p>
  */
 public final class JavaScript {
+    @Nullable
+    private static volatile JavaScriptInterpreter externalJavaScriptInterpreter;
 
     private static final long MAX_RUN_TIME_NANOS = TimeUnit.SECONDS.toNanos(5);
     // how many interpreted instructions run between two run time checks
@@ -37,6 +47,11 @@ public final class JavaScript {
     public static String run(final String function,
                              final String functionName,
                              final String... parameters) {
+        final JavaScriptInterpreter external = externalJavaScriptInterpreter;
+        if (external != null) {
+            return external.run(function, functionName, parameters);
+        }
+
         try (Context context = SANDBOX.enterContext()) {
             final ScriptableObject scope = context.initSafeStandardObjects();
 
@@ -86,5 +101,17 @@ public final class JavaScript {
                 throw new IllegalStateException("JavaScript run time limit exceeded");
             }
         }
+    }
+
+    /**
+     * Sets an external JavaScript interpreter, that is used to run JavaScript code instead of the
+     * bundled sandboxed Rhino one.
+     *
+     * @param javaScriptInterpreter the interpreter to use, or {@code null} to go back to the
+     *                              bundled one
+     */
+    public static void setExternalJavaScriptInterpreter(
+            @Nullable final JavaScriptInterpreter javaScriptInterpreter) {
+        JavaScript.externalJavaScriptInterpreter = javaScriptInterpreter;
     }
 }

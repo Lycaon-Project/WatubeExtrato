@@ -1,13 +1,9 @@
 package org.schabi.newpipe.extractor.services.youtube.dashmanifestcreators;
 
-import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getAndroidUserAgent;
-import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getIosUserAgent;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getOriginReferrerHeaders;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getVisionOsUserAgent;
-import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isAndroidStreamingUrl;
-import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isIosStreamingUrl;
+import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isTrustedStreamingUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isVisionOsStreamingUrl;
-import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isWebEmbeddedPlayerStreamingUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.isWebStreamingUrl;
 import static org.schabi.newpipe.extractor.utils.Utils.isNullOrEmpty;
 
@@ -585,9 +581,8 @@ public final class YoutubeDashManifestCreatorsUtils {
      * This method fetches, for OTF streams and for post-live-DVR streams:
      *     <ul>
      *         <li>the base URL of the stream, to which are appended {@link #SQ_0} and
-     *         {@link #RN_0} parameters, with a {@code POS} request for streaming URLs from
-     *         {@code WEB}, {@code TVHTML5}, {@code WEB_EMBEDDED_PLAYER}, {@code ANDROID} and
-     *         {@code IOS} clients;</li>
+     *         {@link #RN_0} parameters, with a {@code POST} request for streaming URLs from
+     *         {@code WEB}, and {@code VISIONOS} clients;</li>
      *         <li>for streaming URLs from HTML5 clients, the {@link #ALR_YES} param is also added.
      *         </li>
      *     </ul>
@@ -604,35 +599,19 @@ public final class YoutubeDashManifestCreatorsUtils {
                                                      @Nonnull final ItagItem itagItem,
                                                      final DeliveryType deliveryType)
             throws CreationException {
-        final boolean isHtml5StreamingUrl = isWebStreamingUrl(baseStreamingUrl)
-                || isWebEmbeddedPlayerStreamingUrl(baseStreamingUrl);
-        if (isHtml5StreamingUrl) {
+        checkStreamingUrl(baseStreamingUrl);
+        final boolean isWebStreamingUrl = isWebStreamingUrl(baseStreamingUrl);
+        if (isWebStreamingUrl) {
             baseStreamingUrl += ALR_YES;
         }
         baseStreamingUrl = appendRnSqParamsIfNeeded(baseStreamingUrl, deliveryType);
 
         final Downloader downloader = NewPipe.getDownloader();
-        if (isHtml5StreamingUrl) {
+        if (isWebStreamingUrl) {
             final String mimeTypeExpected = itagItem.getMediaFormat().getMimeType();
             if (!isNullOrEmpty(mimeTypeExpected)) {
                 return getStreamingWebUrlWithoutRedirects(downloader, baseStreamingUrl,
                         mimeTypeExpected);
-            }
-        } else if (isAndroidStreamingUrl(baseStreamingUrl)) {
-            try {
-                return downloader.post(baseStreamingUrl,
-                        Map.of("User-Agent", List.of(getAndroidUserAgent(null))),
-                        "".getBytes(StandardCharsets.UTF_8));
-            } catch (final IOException | ExtractionException e) {
-                throw new CreationException("Could not get the ANDROID streaming URL response", e);
-            }
-        } else if (isIosStreamingUrl(baseStreamingUrl)) {
-            try {
-                return downloader.post(baseStreamingUrl,
-                        Map.of("User-Agent", List.of(getIosUserAgent(null))),
-                        "".getBytes(StandardCharsets.UTF_8));
-            } catch (final IOException | ExtractionException e) {
-                throw new CreationException("Could not get the IOS streaming URL response", e);
             }
         } else if (isVisionOsStreamingUrl(baseStreamingUrl)) {
             try {
@@ -648,6 +627,20 @@ public final class YoutubeDashManifestCreatorsUtils {
             return downloader.get(baseStreamingUrl);
         } catch (final IOException | ExtractionException e) {
             throw new CreationException("Could not get the streaming URL response", e);
+        }
+    }
+
+    /**
+     * Refuse to fetch a streaming URL which is not one of YouTube's video servers.
+     *
+     * @param streamingUrl the URL about to be fetched
+     * @throws CreationException if the URL is not an https URL of a video server
+     */
+    private static void checkStreamingUrl(@Nonnull final String streamingUrl)
+            throws CreationException {
+        if (!isTrustedStreamingUrl(streamingUrl)) {
+            throw new CreationException("Refusing to fetch a streaming URL outside of YouTube's "
+                    + "video servers");
         }
     }
 
@@ -781,6 +774,8 @@ public final class YoutubeDashManifestCreatorsUtils {
                 // The response body is the redirection URL
                 if (responseMimeType.equals("text/plain")) {
                     streamingUrl = response.responseBody();
+                    // the next URL comes from a response body: it is checked like the first one
+                    checkStreamingUrl(streamingUrl);
                     redirectsCount++;
                 } else {
                     return response;
