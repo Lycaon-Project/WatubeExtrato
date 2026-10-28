@@ -26,4 +26,32 @@ class YoutubeTrustedStreamingUrlTest {
         assertFalse(isTrustedStreamingUrl("https://user@rr3---sn.googlevideo.com/videoplayback"));
         assertFalse(isTrustedStreamingUrl("sabr://18"));
     }
+
+    @Test
+    void theHttpsPortOnly() {
+        assertTrue(isTrustedStreamingUrl("https://rr3---sn-25ge7nsk.googlevideo.com:443/videoplayback"));
+        assertFalse(isTrustedStreamingUrl("https://rr3---sn-25ge7nsk.googlevideo.com:8443/videoplayback"));
+        assertFalse(isTrustedStreamingUrl("https://rr3---sn-25ge7nsk.googlevideo.com:80/videoplayback"));
+        assertFalse(isTrustedStreamingUrl("https://rr3---sn-25ge7nsk.googlevideo.com:0/videoplayback"));
+    }
+
+    @Test
+    void theCaseOfTheUrlDoesNotMatter() {
+        assertTrue(isTrustedStreamingUrl("HTTPS://RR3---SN-25GE7NSK.GOOGLEVIDEO.COM/videoplayback"));
+    }
+
+    @Test
+    void onlyAPlainHostNameIsTrusted() {
+        // trailing dot, empty label
+        assertFalse(isTrustedStreamingUrl("https://rr3---sn-25ge7nsk.googlevideo.com./videoplayback"));
+        assertFalse(isTrustedStreamingUrl("https://rr3..googlevideo.com/videoplayback"));
+        // percent-encoded, once or twice: a decoder could turn it into another host
+        assertFalse(isTrustedStreamingUrl("https://evil.example%2F.googlevideo.com/videoplayback"));
+        assertFalse(isTrustedStreamingUrl("https://evil.example%252F.googlevideo.com/videoplayback"));
+        // look-alike letters (a Cyrillic "о"), raw or as punycode outside googlevideo.com
+        assertFalse(isTrustedStreamingUrl("https://rr3.googlevideо.com/videoplayback"));
+        assertFalse(isTrustedStreamingUrl("https://rr3.xn--googlevide-6ij.com/videoplayback"));
+        // an ideographic full stop, which some decoders read as a dot
+        assertFalse(isTrustedStreamingUrl("https://rr3.googlevideo.com。evil.example/videoplayback"));
+    }
 }

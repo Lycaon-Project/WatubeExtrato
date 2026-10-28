@@ -8,6 +8,7 @@ import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.downloader.Response;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.localization.Localization;
+import org.schabi.newpipe.extractor.utils.JavaScript;
 import org.schabi.newpipe.extractor.utils.Parser;
 
 import javax.annotation.Nonnull;
@@ -153,7 +154,12 @@ final class YoutubeJavaScriptExtractor {
         if (!isNullOrEmpty(response.latestUrl())) {
             checkJavaScriptPlayerUrl(response.latestUrl());
         }
-        return response.responseBody();
+        final String code = response.responseBody();
+        // parsed by regexes and partly run by Rhino: an oversized answer is refused right away
+        if (code.length() > JavaScript.MAX_SOURCE_LENGTH) {
+            throw new ParsingException("JavaScript base player's code is too large");
+        }
+        return code;
     }
 
     private static void checkJavaScriptPlayerUrl(@Nonnull final String javaScriptPlayerUrl)

@@ -55,4 +55,39 @@ class JavaScriptTest {
         assertThrows(RuntimeException.class, () -> JavaScript.run(
                 "function f(a) { return f(a); }", "f", "a"));
     }
+
+    @Test
+    void oversizedCodeIsRefusedBeforeRunning() {
+        final String code = "function f(a) { return a; }//"
+                + "x".repeat(JavaScript.MAX_SOURCE_LENGTH);
+        assertThrows(IllegalArgumentException.class, () -> JavaScript.run(code, "f", "a"));
+        assertThrows(IllegalArgumentException.class, () -> JavaScript.compileOrThrow(code));
+    }
+
+    @Test
+    void oversizedResultIsRefused() {
+        // 2^17 characters, far more than any signature
+        assertThrows(IllegalStateException.class, () -> JavaScript.run(
+                "function f(a) { var s = 'x'; for (var i = 0; i < 17; i++) { s += s; } "
+                        + "return s; }", "f", "a"));
+    }
+
+    @Test
+    void growingAllocationIsStoppedLongBeforeTheMemoryIsFull() {
+        // 10 kB more at each turn: stopped by the memory limit, well before the time limit
+        assertTimeoutPreemptively(Duration.ofSeconds(30), () -> assertThrows(
+                IllegalStateException.class,
+                () -> JavaScript.run("function f(a) { var k = []; "
+                        + "while (true) { k.push(new Array(10000).join('x')); } }", "f", "a")));
+    }
+
+    @Test
+    void singleHugeAllocationFailsCleanly() {
+        // one native call asking for gigabytes: an exception, not an OutOfMemoryError
+        assertTimeoutPreemptively(Duration.ofSeconds(30), () -> assertThrows(
+                IllegalStateException.class,
+                () -> JavaScript.run(
+                        "function f(a) { return new Array(1500000000).join('xy'); }",
+                        "f", "a")));
+    }
 }

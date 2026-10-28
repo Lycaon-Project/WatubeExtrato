@@ -31,6 +31,15 @@ public final class JavaScript {
     // how many interpreted instructions run between two run time checks
     private static final int INSTRUCTION_OBSERVER_THRESHOLD = 10_000;
     private static final int MAX_INTERPRETER_STACK_DEPTH = 1_000;
+    /** The whole player code is a few megabytes; the functions taken from it far less. */
+    public static final int MAX_SOURCE_LENGTH = 8 * 1024 * 1024;
+    /** A signature or a throttling parameter: a few hundred characters. */
+    private static final int MAX_RESULT_LENGTH = 64 * 1024;
+    /**
+     * How much more of the heap a run may hold: the time limit alone would let a script fill the
+     * memory of a phone before it stops it.
+     */
+    private static final long MAX_RUN_MEMORY_BYTES = 64L * 1024 * 1024;
 
     private static final ContextFactory SANDBOX = new SandboxContextFactory();
 
@@ -38,6 +47,7 @@ public final class JavaScript {
     }
 
     public static void compileOrThrow(final String function) {
+        checkSourceLength(function);
         try (Context context = SANDBOX.enterContext()) {
             // If it doesn't compile it throws an exception here
             context.compileString(function, null, 1, null);
@@ -52,18 +62,40 @@ public final class JavaScript {
             return external.run(function, functionName, parameters);
         }
 
+        checkSourceLength(function);
         try (Context context = SANDBOX.enterContext()) {
             final ScriptableObject scope = context.initSafeStandardObjects();
 
             context.evaluateString(scope, function, functionName, 1, null);
             final Function jsFunction = (Function) scope.get(functionName, scope);
             final Object result = jsFunction.call(context, scope, scope, parameters);
+            // measured before a string made of pieces is put together
+            if (result instanceof CharSequence
+                    && ((CharSequence) result).length() > MAX_RESULT_LENGTH) {
+                throw new IllegalStateException("JavaScript result too large");
+            }
             return result.toString();
+        } catch (final OutOfMemoryError e) {
+            // a single huge allocation of a native function, which no check can stop before
+            // it is made: it failed, so its memory is free again and the app can go on
+            throw new IllegalStateException("JavaScript memory limit exceeded", e);
         }
+    }
+
+    private static void checkSourceLength(final String function) {
+        if (function.length() > MAX_SOURCE_LENGTH) {
+            throw new IllegalArgumentException("JavaScript code too large");
+        }
+    }
+
+    private static long usedMemory() {
+        final Runtime runtime = Runtime.getRuntime();
+        return runtime.totalMemory() - runtime.freeMemory();
     }
 
     private static final class SandboxContext extends Context {
         private long deadline;
+        private long memoryLimit;
 
         SandboxContext(final ContextFactory factory) {
             super(factory);
@@ -89,16 +121,24 @@ public final class JavaScript {
                                    final Scriptable scope,
                                    final Scriptable thisObj,
                                    final Object[] args) {
-            ((SandboxContext) context).deadline = System.nanoTime() + MAX_RUN_TIME_NANOS;
+            final SandboxContext sandbox = (SandboxContext) context;
+            sandbox.deadline = System.nanoTime() + MAX_RUN_TIME_NANOS;
+            // a quarter of the heap at most, for the small heaps of some phones
+            sandbox.memoryLimit = usedMemory()
+                    + Math.min(MAX_RUN_MEMORY_BYTES, Runtime.getRuntime().maxMemory() / 4);
             return super.doTopCall(callable, context, scope, thisObj, args);
         }
 
         @Override
         protected void observeInstructionCount(final Context context,
                                                final int instructionCount) {
+            final SandboxContext sandbox = (SandboxContext) context;
             // a RuntimeException other than Rhino's own cannot be caught by the script
-            if (System.nanoTime() - ((SandboxContext) context).deadline > 0) {
+            if (System.nanoTime() - sandbox.deadline > 0) {
                 throw new IllegalStateException("JavaScript run time limit exceeded");
+            }
+            if (usedMemory() > sandbox.memoryLimit) {
+                throw new IllegalStateException("JavaScript memory limit exceeded");
             }
         }
     }

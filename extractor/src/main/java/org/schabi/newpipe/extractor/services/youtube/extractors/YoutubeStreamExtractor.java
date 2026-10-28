@@ -84,6 +84,7 @@ import org.schabi.newpipe.extractor.utils.JsonUtils;
 import org.schabi.newpipe.extractor.utils.LocaleCompat;
 import org.schabi.newpipe.extractor.utils.Pair;
 import org.schabi.newpipe.extractor.utils.Parser;
+import org.schabi.newpipe.extractor.utils.PrivacyEvents;
 import org.schabi.newpipe.extractor.utils.Utils;
 
 import java.io.IOException;
@@ -625,7 +626,14 @@ public class YoutubeStreamExtractor extends StreamExtractor {
             return "";
         }
         final String manifestUrl = visionOsStreamingData.getString("hlsManifestUrl");
-        return YoutubeParsingHelper.isTrustedStreamingUrl(manifestUrl) ? manifestUrl + "?" : "";
+        if (isNullOrEmpty(manifestUrl)) {
+            return "";
+        }
+        if (!YoutubeParsingHelper.isTrustedStreamingUrl(manifestUrl)) {
+            PrivacyEvents.report(PrivacyEvents.Event.STREAM_URL_REFUSED);
+            return "";
+        }
+        return manifestUrl + "?";
     }
 
     @Override
@@ -657,6 +665,9 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         final String sabrUrl = visionOsStreamingData == null ? null
                 : visionOsStreamingData.getString(SERVER_ABR_STREAMING_URL);
         if (!YoutubeParsingHelper.isTrustedStreamingUrl(sabrUrl)) {
+            if (!isNullOrEmpty(sabrUrl)) {
+                PrivacyEvents.report(PrivacyEvents.Event.STREAM_URL_REFUSED);
+            }
             return null;
         }
         return sabrUrl + "&cpn=" + visionOsCpn;
@@ -1244,6 +1255,7 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         // (the caller ignores the formats that throw), whatever the response contained
         if (!streamUrl.startsWith(SABR_URL_PREFIX)
                 && !YoutubeParsingHelper.isTrustedStreamingUrl(streamUrl)) {
+            PrivacyEvents.report(PrivacyEvents.Event.STREAM_URL_REFUSED);
             throw new ParsingException("Streaming URL of itag " + itagItem.id
                     + " is not a YouTube video server URL");
         }

@@ -61,6 +61,8 @@ import org.schabi.newpipe.extractor.services.youtube.protos.video.Xtags.KeyValue
 import org.schabi.newpipe.extractor.stream.AudioTrackType;
 import org.schabi.newpipe.extractor.utils.JsonUtils;
 import org.schabi.newpipe.extractor.utils.Parser;
+import org.schabi.newpipe.extractor.utils.PrivacyEvents;
+import org.schabi.newpipe.extractor.utils.SecureUrls;
 import org.schabi.newpipe.extractor.utils.RandomStringFromAlphabetGenerator;
 import org.schabi.newpipe.extractor.utils.UrlPrivacy;
 import org.schabi.newpipe.extractor.utils.Utils;
@@ -185,6 +187,9 @@ public final class YoutubeParsingHelper {
     private static volatile Random numberGenerator = new SecureRandom();
 
     private static final String GOOGLE_VIDEO_HOST_SUFFIX = ".googlevideo.com";
+    private static final int HTTPS_PORT = 443;
+    /** Plain ASCII labels: no percent-encoding, no empty label, no trailing dot. */
+    private static final Pattern HOST_NAME_PATTERN = Pattern.compile("[a-z0-9-]+(\\.[a-z0-9-]+)+");
 
     private static final String FEED_BASE_CHANNEL_ID =
             "https://www.youtube.com/feeds/videos.xml?channel_id=";
@@ -714,8 +719,11 @@ public final class YoutubeParsingHelper {
                 for (final String param : params) {
                     if (param.startsWith("q=")) {
                         try {
-                            return UrlPrivacy.removeTrackingParameters(
-                                    Utils.decodeUrlUtf8(param.substring(2)));
+                            final String target = Utils.decodeUrlUtf8(param.substring(2));
+                            // the redirect through YouTube is a tracker of its own
+                            PrivacyEvents.report(PrivacyEvents.Event.TRACKER_REMOVED);
+                            return SecureUrls.upgradeToHttps(
+                                    UrlPrivacy.removeTrackingParameters(target));
                         } catch (final IllegalArgumentException e) {
                             // a malformed escape sequence: no usable target
                             return null;
@@ -723,7 +731,7 @@ public final class YoutubeParsingHelper {
                     }
                 }
             } else if (internUrl.startsWith("http")) {
-                return UrlPrivacy.removeTrackingParameters(internUrl);
+                return SecureUrls.upgradeToHttps(UrlPrivacy.removeTrackingParameters(internUrl));
             } else if (internUrl.startsWith("/channel") || internUrl.startsWith("/user")
                     || internUrl.startsWith("/watch")) {
                 return "https://www.youtube.com" + internUrl;
@@ -1354,7 +1362,8 @@ public final class YoutubeParsingHelper {
      * </p>
      *
      * @param url a streaming, manifest or SABR URL
-     * @return whether the URL is an https URL of a {@code googlevideo.com} host
+     * @return whether the URL is an https URL of a {@code googlevideo.com} host, on the https
+     * port, with a plain ASCII host name
      */
     public static boolean isTrustedStreamingUrl(@Nullable final String url) {
         if (isNullOrEmpty(url)) {
@@ -1363,7 +1372,10 @@ public final class YoutubeParsingHelper {
         try {
             final URL parsed = new URL(url);
             final String host = parsed.getHost().toLowerCase(Locale.ROOT);
+            // the https port only: another one could reach any other service of that host
+            final boolean httpsPort = parsed.getPort() == -1 || parsed.getPort() == HTTPS_PORT;
             return "https".equals(parsed.getProtocol()) && parsed.getUserInfo() == null
+                    && httpsPort && HOST_NAME_PATTERN.matcher(host).matches()
                     && host.endsWith(GOOGLE_VIDEO_HOST_SUFFIX);
         } catch (final MalformedURLException e) {
             return false;

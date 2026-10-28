@@ -16,6 +16,7 @@ import org.schabi.newpipe.extractor.services.youtube.DeliveryType;
 import org.schabi.newpipe.extractor.services.youtube.ItagItem;
 import org.schabi.newpipe.extractor.stream.AudioTrackType;
 import org.schabi.newpipe.extractor.utils.ManifestCreatorCache;
+import org.schabi.newpipe.extractor.utils.PrivacyEvents;
 import org.w3c.dom.Attr;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
@@ -599,7 +600,7 @@ public final class YoutubeDashManifestCreatorsUtils {
                                                      @Nonnull final ItagItem itagItem,
                                                      final DeliveryType deliveryType)
             throws CreationException {
-        checkStreamingUrl(baseStreamingUrl);
+        checkStreamingUrl(baseStreamingUrl, PrivacyEvents.Event.STREAM_URL_REFUSED);
         final boolean isWebStreamingUrl = isWebStreamingUrl(baseStreamingUrl);
         if (isWebStreamingUrl) {
             baseStreamingUrl += ALR_YES;
@@ -634,11 +635,14 @@ public final class YoutubeDashManifestCreatorsUtils {
      * Refuse to fetch a streaming URL which is not one of YouTube's video servers.
      *
      * @param streamingUrl the URL about to be fetched
+     * @param refusal      what a refusal is reported as (see {@link PrivacyEvents})
      * @throws CreationException if the URL is not an https URL of a video server
      */
-    private static void checkStreamingUrl(@Nonnull final String streamingUrl)
+    private static void checkStreamingUrl(@Nonnull final String streamingUrl,
+                                          @Nonnull final PrivacyEvents.Event refusal)
             throws CreationException {
         if (!isTrustedStreamingUrl(streamingUrl)) {
+            PrivacyEvents.report(refusal);
             throw new CreationException("Refusing to fetch a streaming URL outside of YouTube's "
                     + "video servers");
         }
@@ -775,7 +779,7 @@ public final class YoutubeDashManifestCreatorsUtils {
                 if (responseMimeType.equals("text/plain")) {
                     streamingUrl = response.responseBody();
                     // the next URL comes from a response body: it is checked like the first one
-                    checkStreamingUrl(streamingUrl);
+                    checkStreamingUrl(streamingUrl, PrivacyEvents.Event.REDIRECT_BLOCKED);
                     redirectsCount++;
                 } else {
                     return response;

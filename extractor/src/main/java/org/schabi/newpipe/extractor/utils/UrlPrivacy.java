@@ -66,7 +66,12 @@ public final class UrlPrivacy {
         final Set<String> siteParameters = siteParameters(url);
         final List<String> kept = new ArrayList<>();
         for (final String parameter : url.substring(queryStart + 1, queryEnd).split("&")) {
-            if (!parameter.isEmpty() && !isTracking(parameter, siteParameters)) {
+            if (parameter.isEmpty()) {
+                continue;
+            }
+            if (isTracking(parameter, siteParameters)) {
+                PrivacyEvents.report(PrivacyEvents.Event.TRACKER_REMOVED);
+            } else {
                 kept.add(parameter);
             }
         }

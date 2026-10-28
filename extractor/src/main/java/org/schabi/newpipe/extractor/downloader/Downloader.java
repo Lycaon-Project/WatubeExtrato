@@ -3,6 +3,7 @@ package org.schabi.newpipe.extractor.downloader;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
 import org.schabi.newpipe.extractor.localization.Localization;
+import org.schabi.newpipe.extractor.utils.SecureUrls;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,7 +75,7 @@ public abstract class Downloader {
                         @Nullable final Map<String, List<String>> headers,
                         final Localization localization)
             throws IOException, ReCaptchaException {
-        return execute(Request.newBuilder()
+        return checkedExecute(Request.newBuilder()
                 .get(url)
                 .headers(headers)
                 .localization(localization)
@@ -101,7 +102,7 @@ public abstract class Downloader {
      */
     public Response head(final String url, @Nullable final Map<String, List<String>> headers)
             throws IOException, ReCaptchaException {
-        return execute(Request.newBuilder()
+        return checkedExecute(Request.newBuilder()
                 .head(url)
                 .headers(headers)
                 .build());
@@ -140,7 +141,7 @@ public abstract class Downloader {
                          @Nullable final byte[] dataToSend,
                          final Localization localization)
             throws IOException, ReCaptchaException {
-        return execute(Request.newBuilder()
+        return checkedExecute(Request.newBuilder()
                 .post(url, dataToSend)
                 .headers(headers)
                 .localization(localization)
@@ -243,6 +244,16 @@ public abstract class Downloader {
      */
     public abstract Response execute(@Nonnull Request request)
             throws IOException, ReCaptchaException;
+
+    /**
+     * {@link #execute(Request)}, once checked that a request to YouTube or Google goes over
+     * https (see {@link SecureUrls#checkRequest(String)}).
+     */
+    private Response checkedExecute(@Nonnull final Request request)
+            throws IOException, ReCaptchaException {
+        SecureUrls.checkRequest(request.url());
+        return execute(request);
+    }
 
     @Override
     public String toString() {
