@@ -9,6 +9,11 @@ pluginManagement {
         mavenCentral()
     }
 }
+
+plugins {
+    // auto-provisions the Java toolchains (JDK 17 here): no manual Jdk installation needed
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
