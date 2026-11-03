@@ -5,6 +5,7 @@ import static org.schabi.newpipe.extractor.utils.Parser.matchMultiplePatterns;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.utils.JavaScript;
 import org.schabi.newpipe.extractor.utils.Parser;
+import org.schabi.newpipe.extractor.utils.TimeLimitedCharSequence;
 import org.schabi.newpipe.extractor.utils.jsextractor.JavaScriptExtractor;
 
 import javax.annotation.Nonnull;
@@ -27,6 +28,9 @@ final class YoutubeThrottlingParameterUtils {
     // NOTE: When changing this, you should also change the quick exit/shortcut
     // in getThrottlingParameterFromStreamingUrl
     private static final Pattern THROTTLING_PARAM_PATTERN = Pattern.compile("[&?]n=([^&]+)");
+
+    /** What a deobfuscated throttling parameter is made of: it is put in a URL as it is. */
+    private static final Pattern URL_SAFE_PARAMETER = Pattern.compile("[A-Za-z0-9_-]+");
 
     // CHECKSTYLE:OFF
     private static final Pattern[] DEOBFUSCATION_FUNCTION_NAME_REGEXES = {
@@ -63,7 +67,7 @@ final class YoutubeThrottlingParameterUtils {
      * could not be extracted
      */
     @Nonnull
-    static String getDeobfuscationFunctionName(@Nonnull final String javaScriptPlayerCode)
+    static String getDeobfuscationFunctionName(@Nonnull final CharSequence javaScriptPlayerCode)
             throws ParsingException {
         final Matcher matcher;
         try {
@@ -101,11 +105,19 @@ final class YoutubeThrottlingParameterUtils {
     static String getDeobfuscationFunction(@Nonnull final String javaScriptPlayerCode,
                                            @Nonnull final String functionName)
             throws ParsingException {
+        return getDeobfuscationFunction(javaScriptPlayerCode, javaScriptPlayerCode, functionName);
+    }
+
+    @Nonnull
+    private static String getDeobfuscationFunction(
+            @Nonnull final String javaScriptPlayerCode,
+            @Nonnull final CharSequence boundedPlayerCode,
+            @Nonnull final String functionName) throws ParsingException {
         String function;
         try {
             function = parseFunctionWithLexer(javaScriptPlayerCode, functionName);
-        } catch (final Exception e) {
-            function = parseFunctionWithRegex(javaScriptPlayerCode, functionName);
+        } catch (final Exception | StackOverflowError e) {
+            function = parseFunctionWithRegex(boundedPlayerCode, functionName);
         }
         return function;
     }
@@ -122,14 +134,50 @@ final class YoutubeThrottlingParameterUtils {
     @Nonnull
     static String getDeobfuscationCode(@Nonnull final String javaScriptPlayerCode)
             throws ParsingException {
-        final String functionName = getDeobfuscationFunctionName(javaScriptPlayerCode);
-        final String deobfuscationFunction = getDeobfuscationFunction(javaScriptPlayerCode,
-                functionName);
+        // every regex below reads the player through this view, so none can run for minutes
+        final CharSequence boundedPlayerCode = new TimeLimitedCharSequence(
+                javaScriptPlayerCode, YoutubeJavaScriptPlayerManager.PLAYER_CODE_REGEX_BUDGET);
+        try {
+            final String functionName = getDeobfuscationFunctionName(boundedPlayerCode);
+            final String deobfuscationFunction = getDeobfuscationFunction(javaScriptPlayerCode,
+                    boundedPlayerCode, functionName);
 
-        // Assert the extracted deobfuscation function is valid
-        JavaScript.compileOrThrow(deobfuscationFunction);
+            // Assert the extracted deobfuscation function is valid
+            JavaScript.compileOrThrow(deobfuscationFunction);
 
-        return buildHelperFunction(javaScriptPlayerCode, deobfuscationFunction);
+            return buildHelperFunction(javaScriptPlayerCode, deobfuscationFunction);
+        } catch (final RuntimeException | StackOverflowError e) {
+            throw new ParsingException(
+                    "Could not parse throttling parameter deobfuscation function", e);
+        }
+    }
+
+    /**
+     * @param parameter a deobfuscated throttling parameter
+     * @return whether it can be put in a streaming URL as it is, without changing anything else
+     * in it
+     */
+    static boolean isValidThrottlingParameter(@Nonnull final String parameter) {
+        return URL_SAFE_PARAMETER.matcher(parameter).matches();
+    }
+
+    /**
+     * Replace the value of the throttling parameter of a streaming URL, and only this one: the
+     * same text elsewhere in the URL, in another parameter, is left as it is.
+     *
+     * @param streamingUrl a streaming URL
+     * @param value        the new value of its throttling parameter
+     * @return the streaming URL with this value, or the same URL if it has no throttling parameter
+     */
+    @Nonnull
+    static String replaceThrottlingParameter(@Nonnull final String streamingUrl,
+                                             @Nonnull final String value) {
+        final Matcher matcher = THROTTLING_PARAM_PATTERN.matcher(streamingUrl);
+        if (!matcher.find()) {
+            return streamingUrl;
+        }
+        return streamingUrl.substring(0, matcher.start(1)) + value
+                + streamingUrl.substring(matcher.end(1));
     }
 
     /**
@@ -166,9 +214,9 @@ final class YoutubeThrottlingParameterUtils {
     }
 
     @Nonnull
-    private static String parseFunctionWithRegex(@Nonnull final String javaScriptPlayerCode,
-                                                 @Nonnull final String functionName)
-            throws Parser.RegexException {
+    private static String parseFunctionWithRegex(
+            @Nonnull final CharSequence javaScriptPlayerCode,
+            @Nonnull final String functionName) throws Parser.RegexException {
         // Quote the function name, as it may contain special regex characters such as dollar
         final Pattern functionPattern = Pattern.compile(
                 Pattern.quote(functionName) + DEOBFUSCATION_FUNCTION_BODY_REGEX,

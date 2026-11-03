@@ -7,6 +7,7 @@ import org.schabi.newpipe.extractor.utils.JavaScript;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +27,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * </p>
  */
 public final class YoutubeJavaScriptPlayerManager {
+
+    /**
+     * How long the regular expressions can search the player for its deobfuscation functions.
+     * They take well under a second; the limit only stops one which would backtrack without end
+     * on a new player, keeping the extraction thread busy for minutes.
+     */
+    static final Duration PLAYER_CODE_REGEX_BUDGET = Duration.ofSeconds(10);
 
     // Streams are extracted on several threads at once: the caches are shared between them.
     // Each streaming URL brings its own throttling parameter, so the map is bounded.
@@ -162,7 +170,8 @@ public final class YoutubeJavaScriptPlayerManager {
             // If the throttling parameter function has been already ran on the throttling parameter
             // of the current streaming URL, replace directly the obfuscated throttling parameter
             // with the cached result in the streaming URL
-            return streamingUrl.replace(obfuscatedThrottlingParameter, cacheResult);
+            return YoutubeThrottlingParameterUtils.replaceThrottlingParameter(
+                    streamingUrl, cacheResult);
         }
 
         extractJavaScriptCodeIfNeeded(videoId);
@@ -201,6 +210,12 @@ public final class YoutubeJavaScriptPlayerManager {
             if (isNullOrEmpty(deobfuscatedThrottlingParameter)) {
                 throw new IllegalStateException("Extracted n-parameter is empty");
             }
+            // the result goes into the streaming URL as it is: it must not be able to add
+            // parameters or change where the URL leads
+            if (!YoutubeThrottlingParameterUtils.isValidThrottlingParameter(
+                    deobfuscatedThrottlingParameter)) {
+                throw new IllegalStateException("Extracted n-parameter is not URL safe");
+            }
 
             if (CACHED_THROTTLING_PARAMETERS.size() >= MAX_CACHED_THROTTLING_PARAMETERS) {
                 CACHED_THROTTLING_PARAMETERS.clear();
@@ -208,8 +223,8 @@ public final class YoutubeJavaScriptPlayerManager {
             CACHED_THROTTLING_PARAMETERS.put(
                     obfuscatedThrottlingParameter, deobfuscatedThrottlingParameter);
 
-            return streamingUrl.replace(
-                    obfuscatedThrottlingParameter, deobfuscatedThrottlingParameter);
+            return YoutubeThrottlingParameterUtils.replaceThrottlingParameter(
+                    streamingUrl, deobfuscatedThrottlingParameter);
         } catch (final Exception e) {
             // This shouldn't happen as the function validity is checked when it is extracted
             throw new ParsingException(

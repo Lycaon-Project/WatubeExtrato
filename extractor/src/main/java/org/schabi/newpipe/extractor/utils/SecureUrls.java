@@ -105,6 +105,22 @@ public final class SecureUrls {
         }
     }
 
+    /**
+     * @param url a link
+     * @return whether it is a web link, in http or https with a host: a link in any other scheme
+     * ({@code javascript:}, {@code intent:}, {@code file:}, {@code content:}...) could run code or
+     * open local data once followed
+     */
+    public static boolean isWebLink(@Nullable final String url) {
+        if (url == null) {
+            return false;
+        }
+        final boolean web = url.regionMatches(true, 0, HTTPS, 0, HTTPS.length())
+                || url.regionMatches(true, 0, HTTP, 0, HTTP.length());
+        final String host = web ? hostOf(url) : null;
+        return host != null && !host.isEmpty();
+    }
+
     @Nullable
     private static String hostOf(@Nonnull final String url) {
         try {

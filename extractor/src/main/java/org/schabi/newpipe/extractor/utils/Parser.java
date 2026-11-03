@@ -66,7 +66,7 @@ public final class Parser {
 
     @Nonnull
     public static Matcher matchOrThrow(@Nonnull final Pattern pattern,
-                                              final String input) throws RegexException {
+                                              final CharSequence input) throws RegexException {
         final Matcher matcher = pattern.matcher(input);
         if (matcher.find()) {
             return matcher;
@@ -89,7 +89,7 @@ public final class Parser {
      * @throws RegexException If the pattern does not match the input or if the group is not found.
      */
     @Nonnull
-    public static String matchGroup1(final String pattern, final String input)
+    public static String matchGroup1(final String pattern, final CharSequence input)
             throws RegexException {
         return matchGroup(pattern, input, 1);
     }
@@ -104,7 +104,7 @@ public final class Parser {
      * @throws RegexException If the pattern does not match the input or if the group is not found.
      */
     @Nonnull
-    public static String matchGroup1(final Pattern pattern, final String input)
+    public static String matchGroup1(final Pattern pattern, final CharSequence input)
             throws RegexException {
         return matchGroup(pattern, input, 1);
     }
@@ -120,7 +120,8 @@ public final class Parser {
      * @throws RegexException If the pattern does not match the input or if the group is not found.
      */
     @Nonnull
-    public static String matchGroup(final String pattern, final String input, final int group)
+    public static String matchGroup(final String pattern, final CharSequence input,
+                                    final int group)
             throws RegexException {
         return matchGroup(compile(pattern), input, group);
     }
@@ -137,7 +138,7 @@ public final class Parser {
      */
     @Nonnull
     public static String matchGroup(@Nonnull final Pattern pattern,
-                                    final String input,
+                                    final CharSequence input,
                                     final int group)
             throws RegexException {
         return matchOrThrow(pattern, input).group(group);
@@ -152,7 +153,7 @@ public final class Parser {
      * @return A {@code Matcher} for the first successful match.
      * @throws RegexException If no patterns match the input or if {@code patterns} is empty.
      */
-    public static Matcher matchMultiplePatterns(final Pattern[] patterns, final String input)
+    public static Matcher matchMultiplePatterns(final Pattern[] patterns, final CharSequence input)
             throws RegexException {
         RegexException exception = null;
         for (final var pattern : patterns) {

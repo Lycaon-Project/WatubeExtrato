@@ -107,8 +107,8 @@ public final class YoutubeDescriptionHelper {
         // otherwise various assumptions made in runsToHtml may fail
         final List<Run> openers = new ArrayList<>();
         final List<Run> closers = new ArrayList<>();
-        addAllCommandRuns(attributedDescription, openers, closers);
-        addAllStyleRuns(attributedDescription, openers, closers);
+        addAllCommandRuns(attributedDescription, content.length(), openers, closers);
+        addAllStyleRuns(attributedDescription, content.length(), openers, closers);
 
         // Note that sorting this way might put closers with the same close position in the wrong
         // order with respect to their openers, causing unnecessary closes and reopens. E.g.
@@ -222,8 +222,23 @@ public final class YoutubeDescriptionHelper {
                 .replace("  ", " &nbsp;");
     }
 
+    /**
+     * @param start         where a run starts in the content, as given by YouTube
+     * @param length        how long the run is, as given by YouTube
+     * @param contentLength how long the content is
+     * @return where the run ends, inside the content, or -1 if it has no character in it
+     */
+    private static int runEnd(final int start, final int length, final int contentLength) {
+        if (start < 0 || length < 1 || start >= contentLength) {
+            return -1;
+        }
+        // long: a huge length must not wrap around to a negative end
+        return (int) Math.min((long) start + length, contentLength);
+    }
+
     private static void addAllCommandRuns(
             @Nonnull final JsonObject attributedDescription,
+            final int contentLength,
             @Nonnull final List<Run> openers,
             @Nonnull final List<Run> closers
     ) {
@@ -234,8 +249,9 @@ public final class YoutubeDescriptionHelper {
                             .getObject("innertubeCommand");
 
                     final int startIndex = run.getInt("startIndex", -1);
-                    final int length = run.getInt("length", 0);
-                    if (startIndex < 0 || length < 1 || navigationEndpoint == null) {
+                    final int endIndex = runEnd(startIndex, run.getInt("length", 0),
+                            contentLength);
+                    if (endIndex < 0 || navigationEndpoint == null) {
                         return;
                     }
 
@@ -258,7 +274,7 @@ public final class YoutubeDescriptionHelper {
                             run, isYoutubeUrl);
 
                     openers.add(new Run(open, LINK_CLOSE, startIndex, transformContent));
-                    closers.add(new Run(open, LINK_CLOSE, startIndex + length, transformContent));
+                    closers.add(new Run(open, LINK_CLOSE, endIndex, transformContent));
                 });
     }
 
@@ -295,6 +311,7 @@ public final class YoutubeDescriptionHelper {
 
     private static void addAllStyleRuns(
             @Nonnull final JsonObject attributedDescription,
+            final int contentLength,
             @Nonnull final List<Run> openers,
             @Nonnull final List<Run> closers
     ) {
@@ -302,11 +319,10 @@ public final class YoutubeDescriptionHelper {
                 .streamAsJsonObjects()
                 .forEach(run -> {
                     final int start = run.getInt("startIndex", -1);
-                    final int length = run.getInt("length", 0);
-                    if (start < 0 || length < 1) {
+                    final int end = runEnd(start, run.getInt("length", 0), contentLength);
+                    if (end < 0) {
                         return;
                     }
-                    final int end = start + length;
 
                     if (run.has("strikethrough")) {
                         openers.add(new Run(STRIKETHROUGH_OPEN, STRIKETHROUGH_CLOSE, start));

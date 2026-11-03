@@ -13,6 +13,7 @@ import com.grack.nanojson.JsonParserException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.safety.Safelist;
 import org.jsoup.select.Elements;
 import org.schabi.newpipe.extractor.Image;
 import org.schabi.newpipe.extractor.Page;
@@ -140,7 +141,10 @@ public class BandcampPlaylistExtractor extends PlaylistExtractor {
         if (license != null) {
             sb.append(license.html());
         }
-        return Description.of(sb.toString(), Description.Type.HTML);
+        // written by the artist: only basic formatting and web links are kept, never a script,
+        // an event handler or a javascript: link
+        return Description.of(Jsoup.clean(sb.toString(), Safelist.basic()),
+                Description.Type.HTML);
     }
 
     @Nonnull

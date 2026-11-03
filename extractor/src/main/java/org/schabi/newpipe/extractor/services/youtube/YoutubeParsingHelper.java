@@ -80,6 +80,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -201,7 +202,12 @@ public final class YoutubeParsingHelper {
     private static final Pattern C_IOS_PATTERN = Pattern.compile("&c=IOS");
     private static final Pattern C_VISIONOS_PATTERN = Pattern.compile("&c=VISIONOS");
 
-    private static final Set<String> GOOGLE_URLS = Set.of("google.", "m.google.", "www.google.");
+    // google.com, www.google.fr, m.google.co.uk... but not google.example.com
+    private static final Pattern GOOGLE_HOST =
+            Pattern.compile("(?:www\\.|m\\.)?google\\.(?:[a-z]{2,3}\\.)?[a-z]{2,}\\.?");
+    // a link to the YouTube redirect page, which logs the link followed before going to it
+    private static final Pattern YOUTUBE_REDIRECT_URL = Pattern.compile(
+            "^(?:https?://(?:www\\.|m\\.)?youtube\\.com)?/redirect\\?", Pattern.CASE_INSENSITIVE);
     private static final Set<String> INVIDIOUS_URLS = Set.of("redirect.invidious.io", "yewtu.be",
             "piped.kavin.rocks", "piped.video", "inv.nadeko.net", "invidious.nerdvpn.de",
             "yt.chocolatemoo53.com", "invidious.tiekoetter.com", "invidious.f5.si");
@@ -214,7 +220,7 @@ public final class YoutubeParsingHelper {
         final String cachedUrl = extractCachedUrlIfNeeded(url);
         try {
             final URL u = new URL(cachedUrl);
-            return GOOGLE_URLS.stream().anyMatch(item -> u.getHost().startsWith(item));
+            return GOOGLE_HOST.matcher(u.getHost().toLowerCase(Locale.ROOT)).matches();
         } catch (final MalformedURLException e) {
             return false;
         }
@@ -703,23 +709,24 @@ public final class YoutubeParsingHelper {
     public static String getUrlFromNavigationEndpoint(
             @Nonnull final JsonObject navigationEndpoint) {
         if (navigationEndpoint.has("urlEndpoint")) {
-            String internUrl = navigationEndpoint.getObject("urlEndpoint")
-                    .getString("url");
-            if (internUrl.startsWith("https://www.youtube.com/redirect?")) {
-                // remove https://www.youtube.com part to fall in the next if block
-                internUrl = internUrl.substring(23);
-            }
+            final String internUrl = navigationEndpoint.getObject("urlEndpoint")
+                    .getString("url", "");
+            final Matcher redirect = YOUTUBE_REDIRECT_URL.matcher(internUrl);
 
-            if (internUrl.startsWith("/redirect?")) {
-                // q parameter can be the first parameter
-                internUrl = internUrl.substring(10);
+            if (redirect.find()) {
                 // privacy: the target is opened directly, so YouTube never learns which link was
                 // followed, and without the trackers the target site appended to it
-                final String[] params = internUrl.split("&");
+                // q parameter can be the first parameter
+                final String[] params = internUrl.substring(redirect.end()).split("&");
                 for (final String param : params) {
                     if (param.startsWith("q=")) {
                         try {
                             final String target = Utils.decodeUrlUtf8(param.substring(2));
+                            if (!SecureUrls.isWebLink(target)) {
+                                // a javascript:, intent: or file: target must never become a
+                                // link the user can follow
+                                return null;
+                            }
                             // the redirect through YouTube is a tracker of its own
                             PrivacyEvents.report(PrivacyEvents.Event.TRACKER_REMOVED);
                             return SecureUrls.upgradeToHttps(
@@ -730,7 +737,7 @@ public final class YoutubeParsingHelper {
                         }
                     }
                 }
-            } else if (internUrl.startsWith("http")) {
+            } else if (SecureUrls.isWebLink(internUrl)) {
                 return SecureUrls.upgradeToHttps(UrlPrivacy.removeTrackingParameters(internUrl));
             } else if (internUrl.startsWith("/channel") || internUrl.startsWith("/user")
                     || internUrl.startsWith("/watch")) {
@@ -824,7 +831,11 @@ public final class YoutubeParsingHelper {
         }
 
         if (textObject.has("simpleText")) {
-            return textObject.getString("simpleText");
+            final String simpleText = textObject.getString("simpleText");
+            // as HTML, the text is escaped like the runs below: it is shown, never interpreted
+            return html && simpleText != null
+                    ? textToHtml(Entities.escape(simpleText))
+                    : simpleText;
         }
 
         final JsonArray runs = textObject.getArray("runs");
@@ -838,14 +849,15 @@ public final class YoutubeParsingHelper {
             String text = run.getString("text");
 
             if (html) {
-                if (run.has("navigationEndpoint")) {
-                    final String url = getUrlFromNavigationEndpoint(
-                            run.getObject("navigationEndpoint"));
-                    if (!isNullOrEmpty(url)) {
-                        text = "<a href=\"" + Entities.escape(url) + "\">" + Entities.escape(text)
-                                + "</a>";
-                    }
-                }
+                final String url = run.has("navigationEndpoint")
+                        ? getUrlFromNavigationEndpoint(run.getObject("navigationEndpoint"))
+                        : null;
+                // every run is escaped, not only links: a "<" in a comment or a description
+                // must not open a tag in the HTML handed to the app
+                final String escapedText = text == null ? "" : Entities.escape(text);
+                text = isNullOrEmpty(url)
+                        ? escapedText
+                        : "<a href=\"" + Entities.escape(url) + "\">" + escapedText + "</a>";
 
                 final boolean bold = run.has("bold")
                         && run.getBoolean("bold");
@@ -880,14 +892,13 @@ public final class YoutubeParsingHelper {
             }
         }
 
-        String text = textBuilder.toString();
+        final String text = textBuilder.toString();
+        return html ? textToHtml(text) : text;
+    }
 
-        if (html) {
-            text = text.replaceAll("\\n", "<br>");
-            text = text.replaceAll(" {2}", " &nbsp;");
-        }
-
-        return text;
+    @Nonnull
+    private static String textToHtml(@Nonnull final String escapedText) {
+        return escapedText.replace("\n", "<br>").replace("  ", " &nbsp;");
     }
 
     @Nonnull
@@ -1280,7 +1291,9 @@ public final class YoutubeParsingHelper {
             return null;
         }
         if (url.contains("webcache.googleusercontent.com")) {
-            return url.split("cache:")[1];
+            final int cachedUrlStart = url.indexOf("cache:");
+            // a cache link without its "cache:" part has no other URL to give
+            return cachedUrlStart < 0 ? url : url.substring(cachedUrlStart + "cache:".length());
         }
         return url;
     }
@@ -1441,7 +1454,8 @@ public final class YoutubeParsingHelper {
                     .findFirst()
                     .map(KeyValuePair::getValue)
                     .orElse(null);
-        } catch (final InvalidProtocolBufferException ignored) {
+        } catch (final InvalidProtocolBufferException | IllegalArgumentException ignored) {
+            // IllegalArgumentException: the tags are not valid base64
             return null;
         }
 

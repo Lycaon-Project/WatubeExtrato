@@ -1210,6 +1210,9 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                     } catch (final ExtractionException ignored) {
                         // If the itag is not supported, the n parameter of HTML5 clients cannot be
                         // decoded or buildAndAddItagInfoToList fails, we end up here
+                    } catch (final RuntimeException ignored) {
+                        // A malformed format (a number which is not one, a missing field, an
+                        // unexpected MIME type) only loses this format, not the whole list
                     }
                     return null;
                 })
@@ -1234,7 +1237,13 @@ public class YoutubeStreamExtractor extends StreamExtractor {
                 final var cipher = Parser.compatParseMap(cipherString);
                 final String signature = YoutubeJavaScriptPlayerManager.deobfuscateSignature(
                         videoId, cipher.getOrDefault("s", ""));
-                streamUrl = cipher.get("url") + "&" + cipher.get("sp") + "=" + signature;
+                final String cipherUrl = cipher.get("url");
+                if (isNullOrEmpty(cipherUrl)) {
+                    throw new ParsingException("Could not get the URL of a ciphered stream");
+                }
+                // the signature comes out of the player code: encoded, it cannot add parameters
+                streamUrl = cipherUrl + "&" + Utils.encodeUrlUtf8(cipher.getOrDefault("sp", "sig"))
+                        + "=" + Utils.encodeUrlUtf8(signature);
             } else {
                 //HACK: SABR formats share a common URL (`serverAbrStreamingUrl`) and do not have
                 // individual URLs

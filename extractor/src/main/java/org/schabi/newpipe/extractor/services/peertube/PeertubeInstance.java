@@ -12,9 +12,17 @@ import org.schabi.newpipe.extractor.utils.JsonUtils;
 import org.schabi.newpipe.extractor.utils.Utils;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Locale;
+import java.util.Set;
+
+import javax.annotation.Nullable;
 
 public class PeertubeInstance {
+
+    /** The only hosts reached in plain http: the device itself. */
+    private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]");
 
     private final String url;
     private String name;
@@ -38,12 +46,24 @@ public class PeertubeInstance {
     /** Every request to the instance would tell what the user watches: never in the clear. */
     private static String checkUrl(final String url) {
         final String lower = url.toLowerCase(Locale.ROOT);
-        final boolean local = lower.startsWith("http://localhost")
-                || lower.startsWith("http://127.0.0.1");
+        // the host itself, not a prefix of it: http://localhost.example.com is not on the device
+        final String host = hostOf(url);
+        final boolean local = lower.startsWith("http://") && host != null
+                && LOCAL_HOSTS.contains(host);
         if (!lower.startsWith("https://") && !local) {
             throw new IllegalArgumentException("PeerTube instances are only reached over https");
         }
         return url;
+    }
+
+    @Nullable
+    private static String hostOf(final String url) {
+        try {
+            final String host = new URI(url).getHost();
+            return host == null ? null : host.toLowerCase(Locale.ROOT);
+        } catch (final URISyntaxException e) {
+            return null;
+        }
     }
 
     public String getUrl() {
