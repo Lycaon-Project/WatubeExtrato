@@ -48,7 +48,7 @@ utilisateur plus que le strict nécessaire.**
 | **SABR streaming** (YouTube's server-driven format) | not yet | ✅ supported (from the LibreTube work) |
 | **YouTube JavaScript** | Rhino, interpreted | ✅ sandbox: 5 s limit, bounded stack, no Java access |
 | **Player JavaScript origin** | not checked | ✅ only `https://www.youtube.com`, redirects included |
-| **Streaming URLs** (video, HLS, SABR, DASH) | used as received | ✅ only `https://*.googlevideo.com` |
+| **Streaming URLs** (video, HLS, SABR, DASH) | used as received | ✅ better call management api |
 | **Links in descriptions and comments** | YouTube redirect unwrapped | ✅ unwrapped **and** tracking parameters removed |
 | **Playback nonces** | `java.util.Random` | ✅ `SecureRandom`, unpredictable |
 | **PoToken plumbing** | present (inactive) | ✅ removed |
