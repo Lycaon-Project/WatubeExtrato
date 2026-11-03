@@ -10,9 +10,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Keeps every exchange with YouTube and Google on https: the links the extractor hands over are
- * upgraded, and a plain http request to them is refused before it reaches the downloader, so
- * that nothing about the user is ever sent to them in the clear.
+ * Keeps every exchange with YouTube, Google and the other services the extractor knows on https:
+ * the links it hands over are upgraded, and a plain http request to them is refused before it
+ * reaches the downloader, so that nothing about the user is ever sent to them in the clear.
  */
 public final class SecureUrls {
 
@@ -21,8 +21,13 @@ public final class SecureUrls {
 
     /** The domains of YouTube and Google, all served over https. */
     private static final List<String> GOOGLE_DOMAINS = List.of(
-            "youtube.com", "youtu.be", "youtube-nocookie.com", "ytimg.com", "ggpht.com",
-            "googlevideo.com", "googleusercontent.com", "googleapis.com", "google.com");
+            "youtube.com", "youtu.be", "youtube-nocookie.com", "youtubekids.com", "ytimg.com",
+            "ggpht.com", "googlevideo.com", "googleusercontent.com", "googleapis.com",
+            "google.com", "gstatic.com", "gvt1.com");
+
+    /** The domains of the other services (SoundCloud, Bandcamp, media.ccc.de), all on https. */
+    private static final List<String> SERVICE_DOMAINS = List.of(
+            "soundcloud.com", "sndcdn.com", "bandcamp.com", "bcbits.com", "media.ccc.de");
 
     private SecureUrls() {
     }
@@ -32,11 +37,29 @@ public final class SecureUrls {
      * @return whether the host belongs to YouTube or Google
      */
     public static boolean isGoogleHost(@Nullable final String host) {
+        return isUnder(host, GOOGLE_DOMAINS);
+    }
+
+    /**
+     * @param host a host name
+     * @return whether the host belongs to a service only reached over https: YouTube and Google,
+     * SoundCloud, Bandcamp or media.ccc.de
+     */
+    public static boolean isHttpsOnlyHost(@Nullable final String host) {
+        return isGoogleHost(host) || isUnder(host, SERVICE_DOMAINS);
+    }
+
+    private static boolean isUnder(@Nullable final String host,
+                                   @Nonnull final List<String> domains) {
         if (host == null) {
             return false;
         }
-        final String name = host.toLowerCase(Locale.ROOT);
-        for (final String domain : GOOGLE_DOMAINS) {
+        String name = host.toLowerCase(Locale.ROOT);
+        // "www.youtube.com." is the same host as "www.youtube.com"
+        while (name.endsWith(".")) {
+            name = name.substring(0, name.length() - 1);
+        }
+        for (final String domain : domains) {
             if (name.equals(domain) || name.endsWith("." + domain)) {
                 return true;
             }
@@ -54,7 +77,7 @@ public final class SecureUrls {
     @Nullable
     public static String upgradeToHttps(@Nullable final String url) {
         if (url == null || !url.regionMatches(true, 0, HTTP, 0, HTTP.length())
-                || !isGoogleHost(hostOf(url))) {
+                || !isHttpsOnlyHost(hostOf(url))) {
             return url;
         }
         PrivacyEvents.report(PrivacyEvents.Event.HTTPS_UPGRADED);
@@ -69,13 +92,16 @@ public final class SecureUrls {
      * @throws IOException if it is a YouTube or Google URL in any other scheme than https
      */
     public static void checkRequest(@Nonnull final String url) throws IOException {
-        if (url.regionMatches(true, 0, HTTPS, 0, HTTPS.length())) {
+        // a backslash or a control character is read differently by java.net.URL and by the
+        // HTTP client: the host checked here might not be the one the request reaches
+        final boolean ambiguous = url.chars().anyMatch(c -> c == '\\' || c < ' ' || c == 0x7f);
+        if (!ambiguous && url.regionMatches(true, 0, HTTPS, 0, HTTPS.length())) {
             return;
         }
         final String host = hostOf(url);
-        if (host == null || isGoogleHost(host)) {
+        if (ambiguous || host == null || isHttpsOnlyHost(host)) {
             PrivacyEvents.report(PrivacyEvents.Event.INSECURE_REQUEST_REFUSED);
-            throw new IOException("Refusing a request to YouTube or Google outside of https");
+            throw new IOException("Refusing a request to a known service outside of https");
         }
     }
 

@@ -43,6 +43,41 @@ class SecureUrlsTest {
         assertFalse(SecureUrls.isGoogleHost("notyoutube.com"));
         assertFalse(SecureUrls.isGoogleHost("youtube.com.evil.example"));
         assertFalse(SecureUrls.isGoogleHost(null));
+        // a trailing dot names the same host
+        assertTrue(SecureUrls.isGoogleHost("www.youtube.com."));
+    }
+
+    @Test
+    void theOtherServicesAreHttpsOnlyToo() {
+        assertTrue(SecureUrls.isHttpsOnlyHost("api-v2.soundcloud.com"));
+        assertTrue(SecureUrls.isHttpsOnlyHost("f4.bcbits.com"));
+        assertTrue(SecureUrls.isHttpsOnlyHost("media.ccc.de"));
+        assertFalse(SecureUrls.isHttpsOnlyHost("framatube.org"));
+        assertThrows(IOException.class,
+                () -> SecureUrls.checkRequest("http://api-v2.soundcloud.com/tracks"));
+        assertEquals("https://artist.bandcamp.com/album/x",
+                SecureUrls.upgradeToHttps("http://artist.bandcamp.com/album/x"));
+    }
+
+    @Test
+    void ambiguousRequestsAreRefused() {
+        // trailing dot: still YouTube, still refused in plain http
+        assertThrows(IOException.class,
+                () -> SecureUrls.checkRequest("http://www.youtube.com./watch"));
+        // java.net.URL and the HTTP client do not read a backslash the same way
+        assertThrows(IOException.class,
+                () -> SecureUrls.checkRequest("http://www.youtube.com\\@evil.example/"));
+        assertThrows(IOException.class,
+                () -> SecureUrls.checkRequest("https://www.youtube.com\\@evil.example/"));
+    }
+
+    @Test
+    void aFailingListenerDoesNotBreakTheExtraction() {
+        PrivacyEvents.setListener(event -> {
+            throw new IllegalStateException("storage unavailable");
+        });
+        assertEquals("https://example.org/a", UrlPrivacy.removeTrackingParameters(
+                "https://example.org/a?utm_source=x"));
     }
 
     @Test

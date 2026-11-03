@@ -36,6 +36,24 @@ class JavaScriptTest {
     }
 
     @Test
+    void endlessLoopCannotSwallowTheStopInAFinally() {
+        // a finally block runs for an exception and its continue would have dropped it
+        assertTimeoutPreemptively(Duration.ofSeconds(30), () -> assertThrows(
+                IllegalStateException.class,
+                () -> JavaScript.run("function f(a) { for (;;) { "
+                        + "try { while (true) {} } finally { continue; } } }", "f", "a")));
+    }
+
+    @Test
+    void growingAllocationCannotSwallowTheStopInAFinally() {
+        assertTimeoutPreemptively(Duration.ofSeconds(30), () -> assertThrows(
+                IllegalStateException.class,
+                () -> JavaScript.run("function f(a) { var k = []; for (;;) { try { "
+                        + "while (true) { k.push(new Array(10000).join('x')); } "
+                        + "} finally { continue; } } }", "f", "a")));
+    }
+
+    @Test
     void noJavaPackages() {
         assertThrows(RuntimeException.class, () -> JavaScript.run(
                 "function f(a) { return java.lang.System.getProperty('user.home'); }", "f", "a"));

@@ -47,8 +47,14 @@ public final class PrivacyEvents {
      */
     public static void report(@Nonnull final Event event) {
         final Listener current = listener;
-        if (current != null) {
+        if (current == null) {
+            return;
+        }
+        try {
             current.onPrivacyEvent(event);
+        } catch (final RuntimeException e) {
+            // a count that could not be kept never stops the extraction that reported it
+            ExtractorLogger.e("PrivacyEvents", "Privacy event listener failed", e);
         }
     }
 }

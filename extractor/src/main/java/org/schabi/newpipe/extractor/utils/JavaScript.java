@@ -51,6 +51,9 @@ public final class JavaScript {
         try (Context context = SANDBOX.enterContext()) {
             // If it doesn't compile it throws an exception here
             context.compileString(function, null, 1, null);
+        } catch (final OutOfMemoryError | StackOverflowError e) {
+            // a huge or deeply nested source: refused like any code that does not compile
+            throw new IllegalStateException("JavaScript code too complex", e);
         }
     }
 
@@ -75,10 +78,25 @@ public final class JavaScript {
                 throw new IllegalStateException("JavaScript result too large");
             }
             return result.toString();
+        } catch (final SandboxLimitError e) {
+            throw new IllegalStateException(e.getMessage(), e);
         } catch (final OutOfMemoryError e) {
             // a single huge allocation of a native function, which no check can stop before
             // it is made: it failed, so its memory is free again and the app can go on
             throw new IllegalStateException("JavaScript memory limit exceeded", e);
+        } catch (final StackOverflowError e) {
+            throw new IllegalStateException("JavaScript nesting too deep", e);
+        }
+    }
+
+    /**
+     * Stops a run that went past its limits. An {@link Error}: Rhino runs the {@code finally}
+     * blocks of a script for an exception, and one of them could swallow it with a
+     * {@code continue} and loop on; for an error it runs no script code at all.
+     */
+    private static final class SandboxLimitError extends Error {
+        SandboxLimitError(final String message) {
+            super(message, null, false, false);
         }
     }
 
@@ -94,6 +112,8 @@ public final class JavaScript {
     }
 
     private static final class SandboxContext extends Context {
+        /** Set by the first top call of a run: evaluating then calling share the same budget. */
+        private boolean started;
         private long deadline;
         private long memoryLimit;
 
@@ -122,10 +142,13 @@ public final class JavaScript {
                                    final Scriptable thisObj,
                                    final Object[] args) {
             final SandboxContext sandbox = (SandboxContext) context;
-            sandbox.deadline = System.nanoTime() + MAX_RUN_TIME_NANOS;
-            // a quarter of the heap at most, for the small heaps of some phones
-            sandbox.memoryLimit = usedMemory()
-                    + Math.min(MAX_RUN_MEMORY_BYTES, Runtime.getRuntime().maxMemory() / 4);
+            if (!sandbox.started) {
+                sandbox.started = true;
+                sandbox.deadline = System.nanoTime() + MAX_RUN_TIME_NANOS;
+                // a quarter of the heap at most, for the small heaps of some phones
+                sandbox.memoryLimit = usedMemory()
+                        + Math.min(MAX_RUN_MEMORY_BYTES, Runtime.getRuntime().maxMemory() / 4);
+            }
             return super.doTopCall(callable, context, scope, thisObj, args);
         }
 
@@ -133,12 +156,11 @@ public final class JavaScript {
         protected void observeInstructionCount(final Context context,
                                                final int instructionCount) {
             final SandboxContext sandbox = (SandboxContext) context;
-            // a RuntimeException other than Rhino's own cannot be caught by the script
             if (System.nanoTime() - sandbox.deadline > 0) {
-                throw new IllegalStateException("JavaScript run time limit exceeded");
+                throw new SandboxLimitError("JavaScript run time limit exceeded");
             }
             if (usedMemory() > sandbox.memoryLimit) {
-                throw new IllegalStateException("JavaScript memory limit exceeded");
+                throw new SandboxLimitError("JavaScript memory limit exceeded");
             }
         }
     }

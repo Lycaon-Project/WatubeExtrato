@@ -12,6 +12,7 @@ import org.schabi.newpipe.extractor.utils.JsonUtils;
 import org.schabi.newpipe.extractor.utils.Utils;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public class PeertubeInstance {
 
@@ -21,13 +22,28 @@ public class PeertubeInstance {
             = new PeertubeInstance("https://framatube.org", "FramaTube");
 
     public PeertubeInstance(final String url) {
-        this.url = url;
-        this.name = "PeerTube";
+        this(url, "PeerTube");
     }
 
+    /**
+     * @param url  the address of the instance: https, or plain http on the device itself only
+     * @param name its name
+     * @throws IllegalArgumentException for an instance that would be reached in the clear
+     */
     public PeertubeInstance(final String url, final String name) {
-        this.url = url;
+        this.url = checkUrl(url);
         this.name = name;
+    }
+
+    /** Every request to the instance would tell what the user watches: never in the clear. */
+    private static String checkUrl(final String url) {
+        final String lower = url.toLowerCase(Locale.ROOT);
+        final boolean local = lower.startsWith("http://localhost")
+                || lower.startsWith("http://127.0.0.1");
+        if (!lower.startsWith("https://") && !local) {
+            throw new IllegalArgumentException("PeerTube instances are only reached over https");
+        }
+        return url;
     }
 
     public String getUrl() {
