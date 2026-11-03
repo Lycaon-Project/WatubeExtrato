@@ -5,7 +5,7 @@
 
 [versions]
 checkstyle = "12.3.1"
-gson = "2.15.0"
+gson = "2.15.0" # tests only (mock recording), never shipped; 2.15.0 released 2026-10-24
 jsr305 = "3.0.2"
 junit = "5.14.4"
 jsoup = "1.23.2"

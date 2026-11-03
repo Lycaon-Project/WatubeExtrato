@@ -18,6 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeDescriptionHelper.attributedDescriptionToHtml;
+import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.fixThumbnailUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getImagesFromThumbnailsArray;
 import static org.schabi.newpipe.extractor.utils.Utils.isNullOrEmpty;
 
@@ -30,9 +31,11 @@ class YoutubeCommentsEUVMInfoItemExtractor implements CommentsInfoItemExtractor 
     private static final String AUTHOR = "author";
 
     /// YouTube avatar URLs encode their size as an {@code =s<N>} parameter
-    /// (e.g. {@code ...=s88-c-k-c0x00ffffff-no-nd-rj}).
+    /// (e.g. {@code ...=s88-c-k-c0x00ffffff-no-nd-rj}). At most 4 digits, so that a malformed
+    /// value can never overflow {@link Integer#parseInt(String)}; {@code =s0} means "original
+    /// size" and is left unknown.
     private static final Pattern AVATAR_SIZE_URL_PARAMETER =
-            Pattern.compile("=s(\\d+)");
+            Pattern.compile("=s([1-9]\\d{0,3})(?!\\d)");
     private static final String PROPERTIES = "properties";
     private static final String PUBLISHED_TIME = "publishedTime";
 
@@ -182,7 +185,12 @@ class YoutubeCommentsEUVMInfoItemExtractor implements CommentsInfoItemExtractor 
 
         // YouTube avatar URLs carry their size in an =s<N> query parameter,
         // so the size is parsed from the URL instead of being hard-coded.
-        final String url = author.getString("avatarThumbnailUrl");
+        final String rawUrl = author.getString("avatarThumbnailUrl");
+        if (isNullOrEmpty(rawUrl)) {
+            return List.of();
+        }
+        // https only, like every other thumbnail: the avatar is never fetched in the clear
+        final String url = fixThumbnailUrl(rawUrl);
         final Matcher sizeMatcher = AVATAR_SIZE_URL_PARAMETER.matcher(url);
         final int size = sizeMatcher.find()
                 ? Integer.parseInt(sizeMatcher.group(1))
