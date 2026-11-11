@@ -11,18 +11,15 @@ pluginManagement {
 }
 
 plugins {
-    // auto-provisions the Java toolchains (JDK 17 here): no manual Jdk installation needed
+    // auto-provisions the Java toolchains (JDK 25 here): no manual Jdk installation needed
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        // nanojson, the only dependency from JitPack, is now part of the extractor
+        // (org.schabi.newpipe.extractor.json): every dependency comes from Maven Central
         mavenCentral()
-        // JitPack builds any GitHub repository on demand: only nanojson comes from it
-        exclusiveContent {
-            forRepository { maven(url = "https://jitpack.io") }
-            filter { includeGroup("com.github.TeamNewPipe") }
-        }
     }
 }
 include("extractor", "timeago-generator")

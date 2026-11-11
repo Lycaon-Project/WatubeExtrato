@@ -148,8 +148,8 @@ includeBuild("../WatubeExtrato") {
 
 ## Development / Développement
 
-- **JDK**: the library compiles with a Java 17 toolchain, Checkstyle runs on Java 21; both are
-  installed by the CI.
+- **JDK**: Gradle and the compiler run on a JDK 25 toolchain (Temurin 25 in the CI); the class
+  files target Java 21, the Watube app build and unit test JVM.
 - **Tests**: `./gradlew check -Ddownloader=MOCK` runs the whole suite on recorded responses,
   without any network access. `-Ddownloader=REAL` runs it against the live sites (manual CI
   run only: GitHub's addresses are bot-checked by YouTube).

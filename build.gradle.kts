@@ -5,6 +5,8 @@
 
 plugins {
     alias(libs.plugins.google.protobuf) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.vyarus.animalsniffer) apply false
 }
 
 allprojects {
@@ -18,7 +20,7 @@ allprojects {
 
     extensions.configure<JavaPluginExtension> {
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(17))
+            languageVersion.set(JavaLanguageVersion.of(25))
         }
     }
 }

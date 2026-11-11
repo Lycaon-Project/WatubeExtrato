@@ -3,7 +3,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+plugins {
+    alias(libs.plugins.kotlin.jvm)
+}
+
+kotlin {
+    compilerOptions {
+        allWarningsAsErrors = true
+    }
+}
+
 dependencies {
-    implementation(libs.newpipe.nanojson)
-    implementation(libs.google.jsr305)
+    // the JSON library (org.schabi.newpipe.extractor.json) now lives in the extractor
+    implementation(project(":extractor"))
 }

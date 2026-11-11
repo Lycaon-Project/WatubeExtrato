@@ -1,0 +1,121 @@
+/*
+ * SPDX-FileCopyrightText: 2026 NewPipe e.V. <https://newpipe-ev.de>
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+package org.schabi.newpipe.extractor.services.youtube.extractors
+
+import org.schabi.newpipe.extractor.Image
+import org.schabi.newpipe.extractor.ListExtractor.Companion.ITEM_COUNT_UNKNOWN
+import org.schabi.newpipe.extractor.exceptions.ParsingException
+import org.schabi.newpipe.extractor.json.JsonArray
+import org.schabi.newpipe.extractor.json.JsonObject
+import org.schabi.newpipe.extractor.playlist.PlaylistInfoItemExtractor
+import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getImagesFromThumbnailsArray
+import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getTextFromObject
+import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getYoutubeUrlFromNavigationEndpoint
+import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeLinkGuards
+import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory.MUSIC_ALBUMS
+
+public open class YoutubeMusicAlbumOrPlaylistInfoItemExtractor(
+    private val albumOrPlaylistInfoItem: JsonObject,
+    descriptionElements: JsonArray,
+    searchType: String?,
+) : PlaylistInfoItemExtractor {
+
+    private val descriptionElementUploader: JsonObject = descriptionElements.getObject(
+        // For albums: "Album/Single/EP", " • ", uploader, " • ", year -> uploader is at 2
+        // For playlists: uploader, " • ", view count -> uploader is at 0
+        if (MUSIC_ALBUMS == searchType) 2 else 0,
+    )
+
+    @get:Throws(ParsingException::class)
+    override val thumbnails: List<Image>
+        get() = try {
+            getImagesFromThumbnailsArray(
+                albumOrPlaylistInfoItem.getObject("thumbnail")
+                    .getObject("musicThumbnailRenderer")
+                    .getObject("thumbnail")
+                    .getArray("thumbnails"),
+            )
+        } catch (e: Exception) {
+            throw ParsingException("Could not get thumbnails", e)
+        }
+
+    @get:Throws(ParsingException::class)
+    override val name: String
+        get() = getTextFromObject(
+            albumOrPlaylistInfoItem.getArray("flexColumns")
+                .getObject(0)
+                .getObject("musicResponsiveListItemFlexColumnRenderer")
+                .getObject("text"),
+        )?.takeIf { it.isNotEmpty() } ?: throw ParsingException("Could not get name")
+
+    @get:Throws(ParsingException::class)
+    override val url: String
+        get() {
+            val playlistId = albumOrPlaylistInfoItem.getObject("menu")
+                .getObject("menuRenderer")
+                .getArray("items")
+                .getObject(4)
+                .getObject("toggleMenuServiceItemRenderer")
+                .getObject("toggledServiceEndpoint")
+                .getObject("likeEndpoint")
+                .getObject("target")
+                .getString("playlistId")
+                ?.takeIf { it.isNotEmpty() }
+                ?: albumOrPlaylistInfoItem.getObject("overlay")
+                    .getObject("musicItemThumbnailOverlayRenderer")
+                    .getObject("content")
+                    .getObject("musicPlayButtonRenderer")
+                    .getObject("playNavigationEndpoint")
+                    .getObject("watchPlaylistEndpoint")
+                    .getString("playlistId")
+                    ?.takeIf { it.isNotEmpty() }
+                ?: throw ParsingException("Could not get URL")
+
+            // The ID comes from the response: validated before being placed in the URL
+            return "https://music.youtube.com/playlist?list=" +
+                YoutubeLinkGuards.requirePlaylistId(playlistId)
+        }
+
+    @get:Throws(ParsingException::class)
+    override val uploaderName: String
+        get() = descriptionElementUploader.getString("text")?.takeIf { it.isNotEmpty() }
+            ?: throw ParsingException("Could not get uploader name")
+
+    @get:Throws(ParsingException::class)
+    override val uploaderUrl: String?
+        get() {
+            // first try obtaining the uploader from the menu (will not work for MUSIC_PLAYLISTS
+            // though)
+            val artistItem = albumOrPlaylistInfoItem.getObject("menu")
+                .getObject("menuRenderer")
+                .getArray("items")
+                .filterIsInstance<JsonObject>()
+                .map { it.getObject("menuNavigationItemRenderer") }
+                .firstOrNull { it.getObject("icon").getString("iconType", "") == "ARTIST" }
+            if (artistItem != null) {
+                return getYoutubeUrlFromNavigationEndpoint(artistItem.getObject("navigationEndpoint"))
+            }
+
+            // then try obtaining it from the uploader description element
+            if (!descriptionElementUploader.has("navigationEndpoint")) {
+                // if there is no navigationEndpoint for the uploader
+                // then this playlist/album is likely autogenerated
+                return null
+            }
+            return getYoutubeUrlFromNavigationEndpoint(
+                descriptionElementUploader.getObject("navigationEndpoint"),
+            )
+        }
+
+    @get:Throws(ParsingException::class)
+    override val isUploaderVerified: Boolean
+        get() = false
+
+    // YouTube Music album and playlist info items don't expose the stream count anywhere...
+    @get:Throws(ParsingException::class)
+    override val streamCount: Long
+        get() = ITEM_COUNT_UNKNOWN
+}

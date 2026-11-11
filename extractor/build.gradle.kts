@@ -5,11 +5,50 @@
 
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.google.protobuf)
-    checkstyle
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.vyarus.animalsniffer)
     `maven-publish`
+}
+
+/*
+ * Compiled by the JDK 25 toolchain, but run by its consumers on Java 21 (the build and unit test
+ * JVM of the Watube app) and turned into Android bytecode by D8: the class files are Java 21's,
+ * for the Java (protobuf) and the Kotlin sources alike.
+ */
+private val bytecodeTarget = 21
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(bytecodeTarget)
+}
+
+kotlin {
+    // A library: every public declaration must state its visibility and type on purpose
+    explicitApi()
+    compilerOptions {
+        jvmTarget.set(JvmTarget.fromTarget(bytecodeTarget.toString()))
+        allWarningsAsErrors = true
+    }
+}
+
+// The library compiles against the JDK 25 API, but runs on Android (ART) from API 31, which
+// lacks most Java 21+ APIs: fail the build when the code uses one of them. The signature is the
+// Android API 26 one plus the APIs of desugar_jdk_libs_nio 2.x (the app's core library
+// desugaring): stricter than API 31, so passing it is enough. No 31 signature with
+// desugaring exists.
+animalsniffer {
+    toolVersion = libs.versions.animalsniffer.get()
+    sourceSets = listOf(project.sourceSets.main.get())
+    ignore = listOf(
+        // Records are rewritten by D8, which the signature does not model
+        "java.lang.Record",
+        // Only reached by Java deserialization of the serializable channel tab builder
+        // lambdas, which the app never does (it only puts enums in its Bundles)
+        "java.lang.invoke.SerializedLambda",
+    )
 }
 
 java {
@@ -19,7 +58,8 @@ java {
 
 sourceSets {
     main {
-        java.srcDir("../timeago-parser/src/main/java")
+        // the time ago patterns, generated in Kotlin by :timeago-generator
+        kotlin.srcDir("../timeago-parser/src/main/kotlin")
     }
 }
 
@@ -43,44 +83,15 @@ tasks.test {
         systemProperty("downloader", System.getProperty("downloader"))
     }
     useJUnitPlatform()
-    dependsOn(tasks.checkstyleMain) // run checkstyle when testing
-}
-
-// https://checkstyle.org/#JRE_and_JDK
-tasks.withType<Checkstyle>().configureEach {
-    javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
-checkstyle {
-    configDirectory = rootProject.file("checkstyle")
-    isIgnoreFailures = false
-    isShowViolations = true
-    toolVersion = libs.versions.checkstyle.get()
-}
-
-// Exclude Protobuf generated files from Checkstyle
-tasks.checkstyleMain {
-    exclude(
-        "org/schabi/newpipe/extractor/services/youtube/protos",
-        "org/schabi/newpipe/extractor/timeago"
-    )
-}
-
-tasks.checkstyleTest {
-    isEnabled = false // do not checkstyle test files
 }
 
 dependencies {
-    implementation(libs.newpipe.nanojson)
     implementation(libs.jsoup)
-    implementation(libs.google.jsr305)
     implementation(libs.google.protobuf)
 
     implementation(libs.mozilla.rhino.core)
 
-    checkstyle(libs.puppycrawl.checkstyle)
+    signature(variantOf(libs.android.api.signature) { classifier("coreLib2Nio"); artifactType("signature") })
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter.api)
