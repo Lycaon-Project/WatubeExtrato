@@ -177,10 +177,17 @@ public object YoutubeParsingHelper {
     private val CLIENT_VERSION_PATTERN = Regex("[0-9.]{1,32}(-[a-z0-9_.]{1,64})?")
 
     /**
-     * What the visitor data given by YouTube is made of (URL-encoded base64), bounded: it is
-     * sent back as it is in the next request bodies.
+     * What the visitor data given by YouTube is made of (URL-encoded base64): it is sent back as
+     * it is in the next request bodies. Its length is bounded by [MAX_VISITOR_DATA_LENGTH].
      */
-    private val VISITOR_DATA_PATTERN = Regex("[A-Za-z0-9_%=+/-]{1,1024}")
+    private val VISITOR_DATA_PATTERN = Regex("[A-Za-z0-9_%=+/-]+")
+
+    /**
+     * Longest visitor data accepted. YouTube's weighed about 550 characters in November 2026 and
+     * grows with what it encodes: the bound leaves room for that while keeping a hostile answer
+     * out of the request bodies.
+     */
+    private const val MAX_VISITOR_DATA_LENGTH = 4096
 
     /** IDs placed in the URLs built from navigation endpoints. */
     private val SAFE_ID_PATTERN = Regex("[A-Za-z0-9_-]{1,256}")
@@ -1645,13 +1652,35 @@ public object YoutubeParsingHelper {
             .getObject("responseContext")
             .getString("visitorData")
 
-        // sent back as it is in the next request bodies: a malformed value is not used
-        if (visitorData.isNullOrEmpty() || !VISITOR_DATA_PATTERN.matches(visitorData)) {
-            throw ParsingException("Could not get visitorData")
-        }
+        return requireVisitorData(visitorData)
+    }
 
+    /**
+     * [visitorData] as YouTube gave it, refused when it is missing or malformed: it is sent back
+     * as it is in the next request bodies. The message says which of the two, never the value,
+     * which identifies the visitor.
+     */
+    @Throws(ParsingException::class)
+    internal fun requireVisitorData(visitorData: String?): String {
+        if (visitorData.isNullOrEmpty()) {
+            throw ParsingException("Could not get visitorData: missing")
+        }
+        if (visitorData.length > MAX_VISITOR_DATA_LENGTH || !VISITOR_DATA_PATTERN.matches(visitorData)) {
+            throw ParsingException("Could not get visitorData: malformed (${visitorData.length} characters)")
+        }
         return visitorData
     }
+
+    /**
+     * [visitorData] when it is well-formed, `null` otherwise, for the requests which also work
+     * without one: a missing or malformed value is then simply not sent back.
+     */
+    internal fun visitorDataOrNull(visitorData: String?): String? =
+        try {
+            requireVisitorData(visitorData)
+        } catch (_: ParsingException) {
+            null
+        }
 
     @JvmStatic
     public fun prepareJsonBuilder(

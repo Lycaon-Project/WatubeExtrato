@@ -2,6 +2,7 @@ package org.schabi.newpipe.extractor.services.youtube
 
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.downloader.Downloader
+import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
 import org.schabi.newpipe.extractor.exceptions.ExtractionException
 import org.schabi.newpipe.extractor.exceptions.ParsingException
 import org.schabi.newpipe.extractor.json.JsonBuilder
@@ -104,10 +105,24 @@ public object YoutubeStreamHelper {
      * gives the same one to both player requests of ONE video, so that only one visitor_id
      * request is sent. It must never be kept for another video: that would link the videos
      * watched.
+     *
+     * YouTube now and then answers without one: a second request is then sent once, as anonymous
+     * as the first and sharing nothing with it, before the extraction fails. A video that is not
+     * available is not asked twice.
      */
     @JvmStatic
     @Throws(IOException::class, ExtractionException::class)
     public fun getVisionOsVisitorData(localization: Localization, contentCountry: ContentCountry): String =
+        try {
+            requestVisionOsVisitorData(localization, contentCountry)
+        } catch (e: ContentNotAvailableException) {
+            throw e
+        } catch (_: ParsingException) {
+            requestVisionOsVisitorData(localization, contentCountry)
+        }
+
+    @Throws(IOException::class, ExtractionException::class)
+    private fun requestVisionOsVisitorData(localization: Localization, contentCountry: ContentCountry): String =
         YoutubeParsingHelper.getVisitorDataFromInnertube(
             InnertubeClientRequestInfo.ofVisionOsClient(), localization, contentCountry,
             visionOsHeaders(localization), YOUTUBEI_V1_URL, null, false,

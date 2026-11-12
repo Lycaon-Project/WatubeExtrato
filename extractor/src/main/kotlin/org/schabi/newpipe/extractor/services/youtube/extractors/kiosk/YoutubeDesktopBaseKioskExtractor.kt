@@ -22,6 +22,7 @@ import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.YOUTUB
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getClientVersion
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getJsonPostResponse
 import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.prepareJsonBuilder
+import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.visitorDataOrNull
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeItemGuards
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamInfoItemExtractor
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamInfoItemLockupExtractor
@@ -94,7 +95,8 @@ public sealed class YoutubeDesktopBaseKioskExtractor(
                     tabRendererContent.getObject("richGridRenderer").getArray("contents")
                 else -> JsonArray()
             }
-            val visitorData = response.getObject("responseContext").getString("visitorData")
+            // sent back as it is in the continuation bodies: a malformed value is not used
+            val visitorData = visitorDataOrNull(response.getObject("responseContext").getString("visitorData"))
             return collectStreamItems(tabContents, visitorData)
         }
 

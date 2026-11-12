@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.schabi.newpipe.extractor.exceptions.ParsingException
@@ -204,6 +205,49 @@ internal class YoutubeAuditHardeningTest {
         assertNull(
             assertDoesNotThrow<Any?> { YoutubeParsingHelper.extractAudioTrackType("not base64 !!!") }
         )
+    }
+
+    // Visitor data
+
+    @Test
+    fun aVisitorDataOfTodaysSizeIsKept() {
+        // the size YouTube gave in November 2026: about 550 characters, URL-encoded base64
+        val visitorData = "Cgs" + "A1b2_C3d-4".repeat(54) + "%3D%3D"
+
+        assertEquals(visitorData, YoutubeParsingHelper.requireVisitorData(visitorData))
+    }
+
+    @Test
+    fun aMissingVisitorDataIsReportedAsMissing() {
+        val error = assertThrows(ParsingException::class.java) { YoutubeParsingHelper.requireVisitorData(null) }
+
+        assertEquals("Could not get visitorData: missing", error.message)
+        assertThrows(ParsingException::class.java) { YoutubeParsingHelper.requireVisitorData("") }
+    }
+
+    @Test
+    fun aMalformedVisitorDataIsReportedWithoutItsValue() {
+        val visitorData = "Cgs\"},\"injected\":{\""
+        val error = assertThrows(ParsingException::class.java) {
+            YoutubeParsingHelper.requireVisitorData(visitorData)
+        }
+
+        assertEquals("Could not get visitorData: malformed (${visitorData.length} characters)", error.message)
+        assertFalse(error.message.orEmpty().contains("injected"))
+    }
+
+    @Test
+    fun anOversizedVisitorDataIsRefused() {
+        assertThrows(ParsingException::class.java) { YoutubeParsingHelper.requireVisitorData("A".repeat(4097)) }
+        assertDoesNotThrow<String> { YoutubeParsingHelper.requireVisitorData("A".repeat(4096)) }
+    }
+
+    @Test
+    fun aMalformedVisitorDataIsNotSentBackInContinuations() {
+        assertNull(YoutubeParsingHelper.visitorDataOrNull("Cgs\"},\"injected\":{\""))
+        assertNull(YoutubeParsingHelper.visitorDataOrNull("A".repeat(4097)))
+        assertNull(YoutubeParsingHelper.visitorDataOrNull(null))
+        assertEquals("CgsA1b2%3D", YoutubeParsingHelper.visitorDataOrNull("CgsA1b2%3D"))
     }
 
     private companion object {
